@@ -1,0 +1,5 @@
+{
+  "pollsRoot": "C:\\path\\to\\your\\polls",
+  "activePoll": "MMYYYY Poll Name",
+  "inboxFolder": "C:\\path\\to\\your\\polls\\MMYYYY Poll Name\\inbox"
+}

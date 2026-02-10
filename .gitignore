@@ -1,0 +1,31 @@
+# Local configuration
+polls-config.json
+.env
+
+# Example data
+Polls/
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Python
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
