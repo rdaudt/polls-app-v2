@@ -4,14 +4,15 @@
 
 1. [Introduction](#introduction)
 2. [Prerequisites](#prerequisites)
-3. [Quick Start](#quick-start)
-4. [Complete Workflow Reference](#complete-workflow-reference)
-5. [File Formats Reference](#file-formats-reference)
-6. [Time Zone Handling](#time-zone-handling)
-7. [Configuration](#configuration)
-8. [Tips and Best Practices](#tips-and-best-practices)
-9. [Troubleshooting](#troubleshooting)
-10. [Appendices](#appendices)
+3. [Gmail Integration (Optional)](#gmail-integration-optional)
+4. [Quick Start](#quick-start)
+5. [Complete Workflow Reference](#complete-workflow-reference)
+6. [File Formats Reference](#file-formats-reference)
+7. [Time Zone Handling](#time-zone-handling)
+8. [Configuration](#configuration)
+9. [Tips and Best Practices](#tips-and-best-practices)
+10. [Troubleshooting](#troubleshooting)
+11. [Appendices](#appendices)
 
 ---
 
@@ -64,6 +65,220 @@ The Polls App consists of 7 slash commands that guide you through the entire pol
   "inboxFolder": "D:\\polls-root\\032026 Christmas Party Planning Meeting\\inbox"
 }
 ```
+
+---
+
+## Gmail Integration (Optional)
+
+### Overview
+
+The Polls App includes **optional** Gmail integration for automated email sending and response collection. You can use the system with:
+
+- **Manual workflow** — Copy/paste draft emails to your email client (no setup needed)
+- **Gmail workflow** — Use `/poll-send-emails` and `/poll-fetch-responses` to automate (requires one-time OAuth2 setup)
+- **Hybrid workflow** — Mix manual and Gmail approaches based on your needs
+
+### Why Gmail Integration?
+
+Without Gmail integration:
+- ✗ You manually copy draft emails to your email client
+- ✗ You manually save participant responses to files
+- ✓ You have full control and privacy (no credentials stored)
+
+With Gmail integration:
+- ✓ One command to send all draft emails
+- ✓ One command to fetch all responses from Gmail
+- ✓ Automatic email management and archiving
+- ✗ Requires Google account and OAuth2 setup
+
+### Prerequisites for Gmail Integration
+
+- **Node.js 20+** — Required to run MCP servers
+- **Personal Gmail account** (@gmail.com or Google Workspace)
+- **Google Cloud project** with Gmail API enabled
+- **OAuth2 credentials** downloaded as JSON
+
+### Step 1: Create Google Cloud Project
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Click "Select a Project" → "New Project"
+3. Name it: "Polls App Gmail Integration"
+4. Click "Create"
+5. Wait for project to initialize
+
+### Step 2: Enable Gmail API
+
+1. In Google Cloud Console, go to "APIs & Services" → "Library"
+2. Search for "Gmail API"
+3. Click on it and press "Enable"
+4. Wait for enablement to complete
+
+### Step 3: Create OAuth2 Credentials
+
+1. Go to "APIs & Services" → "Credentials"
+2. Click "+ Create Credentials" → "OAuth client ID"
+3. If prompted for "Configure OAuth consent screen":
+   - Select "External" user type
+   - Fill in basic app info: name "Polls App", email, developer contact
+   - Add scope: "https://www.googleapis.com/auth/gmail.send" and "https://www.googleapis.com/auth/gmail.readonly"
+   - Save and continue
+4. For Application type: Select "Desktop app"
+5. Click "Create"
+6. Click "Download JSON" (saves to `Downloads/client_secret_*.json`)
+
+### Step 4: Initial Authentication
+
+1. Move the downloaded JSON file to your project directory (rename to `gcp-oauth.keys.json`)
+2. Run authentication:
+   ```bash
+   npx @gongrzhe/server-gmail-autoauth-mcp auth
+   ```
+3. If prompted, upload or select the `gcp-oauth.keys.json` file
+4. Browser opens with Google sign-in
+5. Select your Gmail account
+6. Grant permissions: "Send email" and "Read email"
+7. Authentication complete — credentials saved to `~/.gmail-mcp/credentials.json`
+
+**Note:** Credentials are stored in your home directory (`~/.gmail-mcp/`), not in the project directory. This is intentional and keeps your git repo clean.
+
+### Step 5: Update Configuration
+
+Add these fields to your `polls-config.json`:
+
+```json
+{
+  "pollsRoot": "D:\\polls-root",
+  "activePoll": "032026 Christmas Party Planning Meeting",
+  "inboxFolder": "D:\\polls-root\\032026 Christmas Party Planning Meeting\\inbox",
+  "pollsEmailSubjectPrefix": "Poll Response:",
+  "pollsEmailLabel": "Polls/Responses"
+}
+```
+
+- `pollsEmailSubjectPrefix` — Used to filter incoming poll responses from other emails
+- `pollsEmailLabel` — Gmail label for organizing poll responses
+
+### Step 6: Verify Setup
+
+Restart Claude Code to load the Gmail MCP server, then test:
+
+```
+/poll-send-emails --help
+/poll-fetch-responses --help
+```
+
+Both commands should display their usage information. If you see errors, check troubleshooting below.
+
+### Using Gmail Integration
+
+#### Sending Emails
+
+**Preview what will be sent (safe, no sending):**
+```
+/poll-send-emails --dry-run
+```
+
+**Send all draft emails:**
+```
+/poll-send-emails
+```
+
+**Send only reminder emails:**
+```
+/poll-send-emails --type reminder
+```
+
+**Send only result emails:**
+```
+/poll-send-emails --type results
+```
+
+Successful sends are moved to `outbox/sent/` folder. Failed sends remain in `outbox/` with error logged.
+
+#### Fetching Responses
+
+**Fetch unread responses:**
+```
+/poll-fetch-responses
+```
+
+**Fetch all responses (including read):**
+```
+/poll-fetch-responses --all
+```
+
+**Test fetch without marking as read:**
+```
+/poll-fetch-responses --keep-unread
+```
+
+Responses are saved to your `inboxFolder` as text files. Then use:
+```
+/poll-process-responses
+```
+
+### Troubleshooting Gmail Setup
+
+**"Command not found: npx" or Node.js not installed**
+- Install [Node.js 20+](https://nodejs.org/)
+- Restart terminal and try again
+
+**"Invalid credentials" or "File not found"**
+- Check that `gcp-oauth.keys.json` is in current directory
+- Verify you downloaded JSON from OAuth credentials (not service account)
+- Try running `npx @gongrzhe/server-gmail-autoauth-mcp auth` again
+
+**"Permission denied" when sending**
+- Check that you granted "Send email" permission during browser auth
+- Try re-authenticating: delete `~/.gmail-mcp/credentials.json` and run auth again
+- Verify Gmail account has "Less secure app access" enabled (if using non-Google apps)
+
+**"No tools available" or send_email not found**
+- Restart Claude Code (MCP servers reload on startup)
+- Check that `.claude.json` exists in project root with gmail server configured
+- Run: `npx -y @smithery/cli install @gongrzhe/server-gmail-autoauth-mcp --client claude`
+
+**"Email not found after fetch"**
+- Check Gmail account directly — is the email in Inbox?
+- Try `--all` flag to fetch all, not just unread
+- Check that subject contains "Poll Response:" or your configured prefix
+- Verify `pollsEmailSubjectPrefix` in `polls-config.json` matches your email subjects
+
+### Manual Fallback
+
+If Gmail setup fails or you prefer manual control:
+
+1. **Skip Gmail setup** — Just use manual workflow
+2. **Send emails manually**:
+   - View drafts in `<pollsRoot>/<activePoll>/outbox/`
+   - Copy/paste into your email client
+   - Send as normal
+3. **Collect responses manually**:
+   - Save participant replies to `<inboxFolder>/` as text files
+   - Use filename format: `<email>-<timestamp>.txt`
+   - Run `/poll-process-responses`
+
+All other commands (`/poll-status`, `/poll-wrap-up`, etc.) work unchanged.
+
+### OAuth2 Token Refresh
+
+**How does token refresh work?**
+- Initial authentication gives you a "refresh token" (valid indefinitely)
+- System uses refresh token to get short-lived "access tokens" (1 hour)
+- Before each send/fetch, access token is auto-refreshed if expired
+- **No user action needed** — happens automatically
+
+**What if I revoke access?**
+- Go to [Google Account Security](https://myaccount.google.com/security)
+- Find "Polls App" or "Connected apps"
+- Click "Remove access"
+- Next send/fetch attempt will fail with clear error
+- Re-run authentication to restore access
+
+**Can I use the same login on multiple projects?**
+- Yes! Credentials are stored globally in `~/.gmail-mcp/`
+- All projects using same Gmail account share one credential
+- No per-project setup needed
 
 ---
 

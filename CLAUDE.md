@@ -97,7 +97,50 @@ All skills should consult these shared reference files:
 - `.claude/skills/poll-shared/poll-file-format.md` — canonical Poll.md format
 - `.claude/skills/poll-shared/template-merge.md` — merge field reference and expansion rules
 
+## Gmail Integration (Optional)
+
+The polls system includes **optional** Gmail integration for automated email sending and response collection. This is built on top of the file-based system and does not replace it.
+
+### Architecture
+
+- **MCP Server**: `@gongrzhe/server-gmail-autoauth-mcp` (Google's Gmail API wrapper)
+- **Authentication**: OAuth2 with refresh tokens (one-time setup via browser)
+- **Credentials**: Stored globally in `~/.gmail-mcp/credentials.json` (not in project)
+- **Fallback**: Manual workflow always available if Gmail integration disabled
+
+### Configuration
+
+Gmail integration uses additional fields in `polls-config.json`:
+- `pollsEmailSubjectPrefix` — Subject prefix to filter poll emails (e.g., "Poll Response:")
+- `pollsEmailLabel` — Gmail label for poll responses (e.g., "Polls/Responses")
+
+### Skills
+
+Two new skills enable automated workflow:
+- `/poll-send-emails` — Send draft emails via Gmail API
+  - Optional flags: `--dry-run`, `--type poll|reminder|results`
+  - Moves sent drafts to `outbox/sent/` folder
+- `/poll-fetch-responses` — Retrieve poll responses from Gmail
+  - Optional flags: `--keep-unread`, `--all`
+  - Saves responses as text files to inbox folder
+
+### Security
+
+- Refresh tokens are long-lived (no expiration unless user revokes)
+- Short-lived access tokens auto-refresh transparently
+- Credentials stored globally at `~/.gmail-mcp/` (outside git repo)
+- OAuth2 scopes limited to `gmail.send` and `gmail.readonly`
+
+### Setup Instructions
+
+See [USER-GUIDE.md](USER-GUIDE.md#gmail-integration) for detailed setup instructions including:
+- Creating Google Cloud project
+- Enabling Gmail API
+- Creating OAuth2 credentials
+- One-time authentication
+- Troubleshooting common errors
+
 ## Documentation
 
-- **USER-GUIDE.md** — Comprehensive guide for end users: complete workflow documentation, file formats, time zone handling, tips, and troubleshooting
+- **USER-GUIDE.md** — Comprehensive guide for end users: complete workflow documentation, file formats, time zone handling, Gmail setup, tips, and troubleshooting
 - **QUICK-REFERENCE.md** — One-page cheat sheet with command summary, lifecycle diagram, merge fields, and common workflows

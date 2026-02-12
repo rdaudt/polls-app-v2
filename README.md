@@ -9,8 +9,9 @@ Built entirely with Claude Code skills (slash commands) — no UI required. All 
 - 📧 **Email-based polling workflow** — invite participants and collect responses via email
 - 🌍 **Automatic time zone conversion** — handle participants across multiple time zones
 - 📝 **Markdown-based templates** — customizable email templates with merge fields
-- 🎯 **7 specialized skills** — dedicated commands for each step of the workflow
+- 🎯 **9 specialized skills** — dedicated commands for each step of the workflow (including optional Gmail automation)
 - 📊 **Vote tallying** — automatic result calculation and frontrunner tracking
+- 🚀 **Optional Gmail Integration** — automated email sending and response collection (with OAuth2)
 - 📖 **Comprehensive documentation** — detailed guides, quick references, and examples
 
 ## How It Works
@@ -20,9 +21,12 @@ This app runs entirely through Claude Code slash commands. There is no web UI �
 ### Poll Lifecycle
 
 1. **Create** (`/poll-create`) — Set up a new poll with participant list, date/time choices, and response deadline
-2. **Draft & Send** (`/poll-draft-emails`) — Generate invitation emails for each participant (with automatic time zone conversion)
-3. **Preview** (`/poll-preview`) — Review a merged email before drafting
-4. **Collect Responses** — Participants reply to emails with their choices (manual email handling)
+2. **Preview** (`/poll-preview`) — Review a merged email before drafting
+3. **Draft & Send** (`/poll-draft-emails`) — Generate invitation emails for each participant (with automatic time zone conversion)
+   - **Optional**: `/poll-send-emails` — Send drafts automatically via Gmail
+4. **Collect Responses** — Participants reply to emails with their choices
+   - **Manual**: Save responses to your inbox folder
+   - **Optional**: `/poll-fetch-responses` — Automatically fetch responses from Gmail
 5. **Process** (`/poll-process-responses`) — Parse incoming response files and update poll results
 6. **Remind** (`/poll-remind`) — Draft reminder emails for participants who haven't responded yet
 7. **Check Status** (`/poll-status`) — View current results and identify the frontrunner
@@ -199,8 +203,20 @@ Each line specifies their response (`Yes` or `As Needed`) for each date/time cho
 ## Requirements
 
 - **Claude Code CLI** — Download from [claude.com/claude-code](https://claude.com/claude-code)
+- **Node.js 20+** — Required for MCP servers (optional, only if using Gmail integration)
 - **Polls directory** — A folder on your system to store poll data
-- **Email client** — For sending and receiving poll emails (manual workflow)
+- **Email client** — For sending and receiving poll emails (required for manual workflow only)
+
+### Optional: Gmail Integration
+
+To enable automated email sending and response collection, set up Gmail OAuth2:
+
+1. Create a Google Cloud project with Gmail API enabled
+2. Create OAuth2 credentials (Desktop app type)
+3. Run authentication: `npx @gongrzhe/server-gmail-autoauth-mcp auth`
+4. Update `polls-config.json` with `pollsEmailSubjectPrefix` and `pollsEmailLabel`
+
+See [USER-GUIDE.md](USER-GUIDE.md#gmail-integration) for detailed setup instructions.
 
 ## Tips & Tricks
 
@@ -238,8 +254,8 @@ This approach works with any email provider and keeps everything under your cont
 
 ## Roadmap
 
-- [ ] Yahoo Mail integration for automated email fetching/sending
-- [ ] Support for additional email providers (Gmail, Outlook, etc.)
+- [x] Gmail integration with OAuth2 (automated email sending/receiving)
+- [ ] Support for additional email providers (Outlook, Yahoo Mail, etc.)
 - [ ] Web-based UI (optional)
 - [ ] Calendar integration (iCal export)
 

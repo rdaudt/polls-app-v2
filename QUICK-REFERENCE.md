@@ -7,7 +7,9 @@
 | `/poll-create` | Initialize a new poll | Start of workflow — create poll folder and files |
 | `/poll-preview` | Preview merged email for one participant | Before drafting — verify formatting & time zones |
 | `/poll-draft-emails` | Generate invitation emails for all participants | Ready to send invitations |
+| `/poll-send-emails` | Send draft emails automatically via Gmail | [Optional] If Gmail integration enabled |
 | `/poll-process-responses` | Read response files and tally votes | Responses arrive from participants |
+| `/poll-fetch-responses` | Fetch responses from Gmail automatically | [Optional] If Gmail integration enabled |
 | `/poll-remind` | Draft reminder emails for non-respondents | Approaching deadline, some haven't responded |
 | `/poll-status` | View current poll status (read-only) | Anytime — check progress without editing |
 | `/poll-wrap-up` | Finalize poll and draft result emails | After deadline — communicate winner |
@@ -27,9 +29,14 @@ START
   │   ↓
   ├─→ /poll-draft-emails
   │   Generate invitation emails
-  │   (Send manually via email client)
+  │   ↓
+  │   ├─ Manual: Copy/paste to email client
+  │   └─ Gmail: /poll-send-emails [--dry-run]
   │   ↓
   │   Participants respond...
+  │   ↓
+  │   ├─ Manual: Save responses to inbox folder
+  │   └─ Gmail: /poll-fetch-responses [--all]
   │   ↓
   ├─→ /poll-process-responses (Repeat as responses arrive)
   │   Record votes & update frontrunner
@@ -38,12 +45,16 @@ START
   │   Check progress without making changes
   │   ↓
   ├─→ /poll-remind (Optional)
-  │   Remind non-respondents
-  │   (Send manually)
+  │   Draft reminder emails
+  │   ↓
+  │   ├─ Manual: Copy/paste to email client
+  │   └─ Gmail: /poll-send-emails --type reminder
   │   ↓
   ├─→ /poll-wrap-up
   │   Finalize & draft result emails
-  │   (Send manually)
+  │   ↓
+  │   ├─ Manual: Copy/paste to email client
+  │   └─ Gmail: /poll-send-emails --type results
   │   ↓
   END
 ```
@@ -60,7 +71,8 @@ START
 │   ├── outbox/                       [Draft email outputs]
 │   │   ├── draft-poll-*.txt
 │   │   ├── draft-reminder-*.txt
-│   │   └── draft-results-*.txt
+│   │   ├── draft-results-*.txt
+│   │   └── sent/                     [Sent emails (Gmail)]
 │   └── inbox/
 │       ├── *.txt                     [Response files (input)]
 │       └── processed/                [After /poll-process-responses]
@@ -224,7 +236,10 @@ Subject: Re: You're invited to Team Meeting
 ## FAQ Quick Answers
 
 **Q: How do I send draft emails?**
-A: Copy/paste from draft files into your email client. System only creates drafts, doesn't send.
+A: **Manual**: Copy/paste from draft files into your email client. **Gmail**: Use `/poll-send-emails` to send automatically (requires OAuth2 setup).
+
+**Q: How do I set up Gmail integration?**
+A: See USER-GUIDE.md Gmail Integration section. Requires Google Cloud project, OAuth2 credentials, and one-time authentication.
 
 **Q: Can participants respond twice?**
 A: Yes — only their latest response counts. All responses logged for audit trail.
@@ -264,5 +279,7 @@ A: EST for winter (Dec-Feb), EDT for summer (Mar-Nov) in Eastern US. Same for ot
 ✓ Run `/poll-preview` before `/poll-draft-emails`
 ✓ Run `/poll-process-responses` frequently
 ✓ `/poll-status` is read-only (safe to run anytime)
-✓ You manually send all draft emails (system creates drafts only)
+✓ Manual workflow: Copy/paste drafts to email client (no setup needed)
+✓ Gmail workflow: Use `/poll-send-emails` & `/poll-fetch-responses` (requires OAuth2 setup)
+✓ Manual and Gmail workflows can be mixed (fallback always available)
 ✓ See USER-GUIDE.md for detailed documentation
