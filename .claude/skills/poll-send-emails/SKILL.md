@@ -1,3 +1,9 @@
+---
+name: poll-send-emails
+description: Send draft emails from the poll outbox via Gmail API
+user_invocable: true
+---
+
 # poll-send-emails
 
 Send draft emails from the poll outbox via Gmail API.
