@@ -36,3 +36,7 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+
+# Documentation artifacts
+DESIGN-DOCUMENTATION.md
+DESIGN-DOCUMENTATION.pdf
