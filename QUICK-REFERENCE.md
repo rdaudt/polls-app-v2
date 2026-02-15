@@ -7,6 +7,7 @@
 | `/poll-create` | Initialize a new poll | Start of workflow — create poll folder and files |
 | `/poll-preview` | Preview merged email for one participant | Before drafting — verify formatting & time zones |
 | `/poll-draft-emails` | Generate invitation emails for all participants | Ready to send invitations |
+| `/poll-gmail-setup` | One-time Gmail OAuth2 authentication | Once per system — enable Gmail integration (optional) |
 | `/poll-send-emails` | Send draft emails automatically via Gmail | [Optional] If Gmail integration enabled |
 | `/poll-process-responses` | Read response files and tally votes | Responses arrive from participants |
 | `/poll-fetch-responses` | Fetch responses from Gmail automatically | [Optional] If Gmail integration enabled |
@@ -21,6 +22,9 @@
 ```
 START
   │
+  ├─→ [Once] /poll-gmail-setup (Optional)
+  │   Enable Gmail integration (one-time setup)
+  │   ↓
   ├─→ /poll-create
   │   Create poll folder & files
   │   ↓

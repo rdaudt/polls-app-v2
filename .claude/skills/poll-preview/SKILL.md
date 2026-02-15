@@ -1,39 +1,96 @@
----
-name: poll-preview
-description: Preview a merged poll email for a specific participant
-user_invocable: true
----
-
 # /poll-preview
 
-Preview what a poll invitation email will look like for a specific participant, with times converted to their time zone.
+**Preview a merged poll email for a specific participant**
 
-## Arguments
+## Overview
 
-- **participant email** (optional) — the email of the participant to preview for. If omitted, defaults to the first participant in the Participants table.
+Shows exactly how an email will look after template merge fields are substituted and time zones are converted. This is a **read-only** command useful for verifying formatting and accuracy before drafting.
 
-## Setup
+## Usage
 
-1. Read `polls-config.json` from the repo root.
-2. Resolve the active poll folder: `<pollsRoot>/<activePoll>/`.
-3. Read `Poll.md` from the active poll folder.
-4. Read `Poll email template.md` from the active poll folder.
+```
+/poll-preview <participant-email> [options]
+```
 
-## Behavior
+### Arguments
 
-1. Find the participant in the Participants table by email (or use the first participant).
-2. If the participant is not found, report an error and list available participants.
-3. Perform a template merge for this participant:
-   - Follow the merge rules in `.claude/skills/poll-shared/template-merge.md`
-   - Convert all date/time choices to the participant's time zone per `.claude/skills/poll-shared/tz-conversion.md`
-   - Expand the `{$DateTimeChoice.N$}` pattern for all choices
-4. Display the merged email to screen, showing:
-   - **To:** participant email
-   - **Subject:** merged subject line
-   - **Body:** merged body (with `<br>` rendered as line breaks)
+- `<participant-email>` (required) — Email of participant to preview (case-insensitive)
 
-## Important
+### Options
 
-- This skill is **read-only**. Do NOT write any files.
-- Do NOT update any dates in Poll.md.
-- This is for organizer review only.
+- `--template TYPE` (optional) — Template type: `poll` (default), `reminder`, `results-respondent`, `results-non-respondent`
+- `--selected-choice N` (optional, required for results templates) — Choice number for the winning date/time
+
+## Examples
+
+**Preview invitation email:**
+```
+/poll-preview alice@example.com
+```
+
+**Preview reminder email:**
+```
+/poll-preview bob@example.com --template reminder
+```
+
+**Preview results email:**
+```
+/poll-preview alice@example.com --template results-respondent --selected-choice 1
+```
+
+## Output Example
+
+```
+Preview for: alice@example.com (Alice Johnson, EST)
+Template: Poll email template.md
+
+---
+To: alice@example.com
+Subject: You're invited: Team Lunch Planning
+
+Alice Johnson,
+
+You're invited to participate in a scheduling poll for **Team Lunch Planning**.
+
+Please indicate your availability for the following time slots (all times in your local timezone):
+
+1. Feb 16, 2026, 13:00 EST
+2. Feb 17, 2026, 10:00 EST
+3. Feb 18, 2026, 15:00 EST
+
+Choose "Yes" if you can attend, or "As Needed" if you might be able to adjust your schedule.
+
+**Deadline**: Feb 28, 2026
+
+Reply with your choices in this format:
+1: Yes
+2: As Needed
+3: Yes
+
+Thanks,
+Alice Johnson
+Director of AI
+---
+
+[DRY RUN] Email not sent. Use /poll-draft-emails to create drafts.
+```
+
+## Error Handling
+
+- Participant not found → Shows error message
+- Poll.md not found → Shows error message
+- Template file not found → Shows error message
+- Invalid choice number for results template → Shows error message
+
+## Implementation
+
+Uses shared modules:
+- `poll-parser.js` — Parse Poll.md
+- `template-engine.js` — Merge template fields
+- `tz-converter.js` — Convert date/times to participant's timezone
+
+## Related Commands
+
+- `/poll-draft-emails` — Generate actual draft files from templates
+- `/poll-status` — View current poll state
+- `/poll-send-emails` — Send draft emails via Gmail

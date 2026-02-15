@@ -1,60 +1,93 @@
----
-name: poll-wrap-up
-description: Finalize the poll — draft results emails to all participants
-user_invocable: true
----
-
 # /poll-wrap-up
 
-Finalize the poll by drafting results emails for all participants. This skill does **not** tally votes — tallying is done by `/poll-process-responses`.
+**Finalize the poll by generating results emails to all participants**
 
-## Setup
+## Overview
 
-1. Read `polls-config.json` from the repo root.
-2. Resolve the active poll folder: `<pollsRoot>/<activePoll>/`.
-3. Read `Poll.md` from the active poll folder.
-4. Read both results templates:
-   - `Poll results email template - Respondent.md`
-   - `Poll results email template - Non-Respondent.md`
+Finalizes the poll with a selected winning choice and generates results email drafts for all participants. Creates two types of result emails:
+- **Respondent results** — For participants who responded to the poll
+- **Non-respondent results** — For participants who didn't respond
 
-## Behavior
+## Usage
 
-### Step 1: Determine the winning choice
+```
+/poll-wrap-up <selected-choice>
+```
 
-Read the "Current state" section in Poll.md:
-- If `Frontrunner choice overwrite` has a value (not empty), use it as the winning choice number.
-- Otherwise, use `Frontrunner choice` as the winning choice number.
-- If neither has a value, report an error and suggest running `/poll-process-responses` first.
+### Arguments
 
-### Step 2: Determine Respondents vs. Non-Respondents
+- `<selected-choice>` (required) — Choice number (1, 2, 3, etc.) that won the poll
 
-- **Respondent**: A participant who has at least one entry in the Responses table.
-- **Non-Respondent**: A participant with no entries in the Responses table.
+## Example
 
-### Step 3: Draft Results Emails
+```
+/poll-wrap-up 1
+```
 
-For each participant:
+Generates results emails with Choice 1 as the selected date/time.
 
-1. Determine which template to use (Respondent or Non-Respondent).
-2. Merge the template following `.claude/skills/poll-shared/template-merge.md`:
-   - Substitute all `{$...$}` fields
-   - For `{$SelectedDateTime$}`: Use the winning choice's date/time (from Step 1), converted to the participant's TZ with TZ abbreviation appended (format: `Mon DD, HH:MM TZ`)
-3. Write a draft file to `outbox/draft-results-<email>.txt` with the format:
-   ```
-   To: <participant email>
-   Subject: <merged subject>
+## Output Example
 
-   <merged body with <br> converted to newlines>
-   ```
-4. Update the "Poll Results Communicated on" column for this participant in the Participants table with the current date/time (organizer's TZ format).
+```
+Wrapping up poll with selected choice: 1 (Feb 16, 2026, 13:00)
 
-### Step 4: Save
+Creating results drafts for all participants...
 
-Save the updated `Poll.md`.
+Respondents (2):
+  ✓ draft-results-alice@example.com.txt - created (respondent template)
+  ✓ draft-results-charlie@example.com.txt - created (respondent template)
 
-## Output
+Non-Respondents (1):
+  ✓ draft-results-bob@example.com.txt - created (non-respondent template)
 
-Report to the organizer:
-- Winning choice and its date/time (note if overwrite was used)
-- Number of results emails drafted (respondents + non-respondents)
-- Location of draft files in `outbox/`
+Updated Poll.md:
+  - Marked all 3 participants as results communicated on Feb 14, 2026, 10:30
+  - Poll status: Completed
+
+Summary: 3 results drafts created in outbox/ (2 respondents, 1 non-respondent)
+Next: Review drafts, then run /poll-send-emails --type results to send
+```
+
+## Templates Used
+
+The skill uses different result templates based on participant status:
+
+- **Respondent template**: `Poll results email template - Respondent.md`
+  - Sent to participants who responded
+  - Shows the selected date/time
+  - Can thank them for their participation
+
+- **Non-Respondent template**: `Poll results email template - Non-Respondent.md`
+  - Sent to participants who didn't respond
+  - Informs them of the selected date/time
+  - Different tone appropriate for non-respondents
+
+## Merge Fields
+
+Both templates can use these merge fields:
+- `{$SelectedDateTime$}` — Selected date/time (in participant's TZ)
+- `{$EventTitle$}` — Event name
+- `{$Participant.Name$}` — Recipient's name
+- `{$Organizer.Name$}` — Organizer's name
+- And all other standard merge fields
+
+## Error Handling
+
+- No active poll configured → Shows error message
+- Poll.md not found → Shows error message
+- Invalid choice number → Shows error with valid range
+- Result template file not found → Shows error message
+- Missing outbox directory → Creates it automatically
+
+## Implementation
+
+Uses shared modules:
+- `poll-parser.js` — Parse Poll.md, update participant table
+- `template-engine.js` — Merge template fields
+- `tz-converter.js` — Convert selected date/time to participant's timezone
+
+## Related Commands
+
+- `/poll-status` — View current poll state before wrap-up
+- `/poll-send-emails --type results` — Send results emails via Gmail
+- `/poll-remind` — Remind non-respondents before wrap-up

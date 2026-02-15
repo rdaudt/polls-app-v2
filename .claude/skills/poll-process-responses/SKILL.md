@@ -1,82 +1,130 @@
----
-name: poll-process-responses
-description: Process poll response files from the inbox and update Poll.md
-user_invocable: true
----
-
 # /poll-process-responses
 
-Scan the inbox folder for response files, parse them, and record the responses in Poll.md.
+**Process poll response files from the inbox and update Poll.md with votes**
 
-## Setup
+## Overview
 
-1. Read `polls-config.json` from the repo root.
-2. Resolve the active poll folder: `<pollsRoot>/<activePoll>/`.
-3. Read `Poll.md` from the active poll folder.
-4. Determine the inbox folder: use `inboxFolder` from config. If empty, use `<active poll folder>/inbox/`.
+Reads response files from the inbox, parses participant choices, performs timezone conversion, and updates Poll.md with the responses. This is the most complex skill — it handles:
+
+- **Response file parsing** — Extract From, Date, Subject, and numbered choices
+- **Timezone conversion** — Convert participant local times back to organizer TZ
+- **Vote recording** — Add responses to Poll.md responses table
+- **Participant tracking** — Update respondedOn dates
+- **Vote tallying** — Automatically tally votes and update current state
+- **File management** — Move processed files to inbox/processed/
+
+## Usage
+
+```
+/poll-process-responses
+```
+
+No arguments or options. Processes all unprocessed response files in the inbox.
 
 ## Response File Format
 
-Each response file is a `.txt` file with this structure:
+Response files in the inbox should follow this format:
+
 ```
-From: <participant email>
-Date: <Mon DD, YYYY, HH:MM>
-Subject: Re: ...
+From: participant@example.com
+Date: Feb 11, 2026, 14:30
+Subject: Re: You're invited: Event Title
 
-<number>: <Yes|As Needed>
-<number>: <Yes|As Needed>
-...
+1: Yes
+2: As Needed
+3: Yes
 ```
 
-- The `From:` email identifies the participant.
-- The `Date:` is in the participant's local time zone.
-- Each numbered line refers to a date/time choice number from Poll.md.
-- Only "Yes" and "As Needed" are valid responses — choices not listed are assumed unavailable.
+Each line after the blank line contains: `<choice_number>: <Yes|As Needed>`
 
-## Behavior
+## Output Example
 
-1. Scan the inbox folder for `.txt` files (non-recursively, skip `processed/` subfolder).
-2. If no response files found, report and exit.
-3. For each response file:
-   a. Parse the `From:` email and find the matching participant in Poll.md's Participants table.
-   b. If participant not found, report a warning and skip the file.
-   c. Parse the `Date:` field. This is in the **participant's time zone**. Convert it to the **organizer's time zone** using `.claude/skills/poll-shared/tz-conversion.md`.
-   d. Parse the numbered choices into "Yes" and "As Needed" lists.
-   e. The choice numbers already refer to the organizer's date/time choices — no conversion of choice numbers needed.
-   f. Append a new row to the **Responses** table in Poll.md:
-      - Date/time: the converted response date/time (organizer TZ)
-      - Name: participant's name
-      - Email: participant's email
-      - Yes: comma-separated list of "Yes" choice numbers
-      - As needed: comma-separated list of "As Needed" choice numbers
-   g. Update the "(last) Responded on" column for this participant in the Participants table with the converted date/time.
-4. **Tally responses and update Current state** (same rules as `/poll-status`):
-   a. Read all rows from the Responses table.
-   b. Only the latest response per participant counts. For each unique email, find the row with the most recent Date/time. Discard earlier responses from the same participant.
-   c. For each date/time choice, count Yes votes and As Needed votes.
-   d. Determine the frontrunner:
-      - Most Yes votes wins.
-      - Tied on Yes → more As Needed votes wins.
-      - Still tied → lower choice number wins.
-   e. Update the "Current state" section in Poll.md:
-      ```
-      ## Current state
-      Assessed on: <current date/time in organizer TZ>
-      Count of participants who responded: <unique participants with responses>
-      Count of responses: <total response rows>
-      Frontrunner choice: <winning choice number>
-      Frontrunner choice overwrite:
-      ```
-      **Important**: If `Frontrunner choice overwrite` already has a value set by the organizer, preserve it. Only clear it if it was already empty.
-5. Save the updated `Poll.md`.
-6. Move processed files to `inbox/processed/` (create the folder if it doesn't exist). If using a global `inboxFolder`, create `processed/` as a subfolder there.
+```
+Processing poll responses...
 
-## Output
+Found 2 response files in inbox/
 
-Report to the organizer:
-- Number of response files processed
-- For each: participant name, choices selected
-- Any files skipped (with reason)
-- Vote tally table (each choice with Yes and As Needed counts)
-- Frontrunner highlighted
-- List of participants who have responded vs. who haven't
+Processing:
+  ✓ alice@example.com-1707746400.txt - 3 choices recorded
+  ✓ bob@example.com-1707750300.txt - 3 choices recorded
+
+Updated Poll.md:
+  - Recorded 6 total responses (3 per participant)
+  - Marked 2 participants as responded
+  - Updated vote tally
+  - Current frontrunner: Choice 1 (Feb 16, 2026, 13:00)
+
+Moved 2 response files to inbox/processed/
+
+Summary: 2 responses processed, 0 skipped
+Next: Run /poll-status to see updated tally
+```
+
+## How It Works
+
+### Step 1: Scan Inbox
+- Looks for all `.txt` files in `inboxFolder` (from polls-config.json)
+- Skips files in `inbox/processed/` subdirectory
+- Only processes unprocessed responses
+
+### Step 2: Parse Response File
+Each file should contain:
+- **From:** Participant email (case-insensitive)
+- **Date:** When response was sent
+- **Subject:** Email subject (for reference)
+- **Choices:** One per line, `<number>: <Yes|As Needed>`
+
+### Step 3: Validate & Extract
+- Check sender is in participants list
+- Extract each choice number and response type
+- Validate choice numbers exist in Poll.md
+
+### Step 4: Timezone Conversion
+- Parse Date field to extract timestamp
+- Convert from participant's TZ to organizer's TZ
+- Store in organizer's TZ in Poll.md
+
+### Step 5: Record Response
+- Add row to Responses table in Poll.md
+- Update participant's respondedOn timestamp
+- Keep all historical responses (latest response per participant wins in tallying)
+
+### Step 6: Tally Votes
+- Count Yes and As Needed for each choice
+- Determine frontrunner using tiebreaker algorithm
+- Update "Current state" section in Poll.md
+
+### Step 7: Archive File
+- Move processed file to `inbox/processed/` directory
+- Prevents reprocessing same response
+
+## Error Handling
+
+- **Non-participant sender** — Logged as skipped, file not moved
+- **Invalid choice numbers** — Logged as warning, other choices recorded
+- **Malformed file** — Logged as skipped, file not moved
+- **Invalid From/Date format** — File skipped with error message
+- No inbox directory → Creates it automatically
+- No inbox/processed/ directory → Creates it automatically
+
+## Timezone Conversion
+
+The skill converts response timestamps from participant's timezone back to organizer's timezone before storing in Poll.md. This ensures all dates/times in Poll.md remain in the organizer's timezone as per design rules.
+
+Example:
+- Participant TZ: EST, Response: "Feb 11, 2026, 14:30 EST"
+- Organizer TZ: PST
+- Stored as: "Feb 11, 2026, 11:30" (organizer TZ)
+
+## Implementation
+
+Uses shared modules:
+- `poll-parser.js` — Parse Poll.md, update responses & participant table
+- `tz-converter.js` — Convert response times to organizer TZ
+- `vote-tally.js` — Tally votes and determine frontrunner
+
+## Related Commands
+
+- `/poll-status` — View current tally after processing
+- `/poll-remind` — Remind non-respondents
+- `/poll-wrap-up` — Finalize poll with results

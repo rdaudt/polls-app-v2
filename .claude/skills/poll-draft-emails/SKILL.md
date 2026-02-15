@@ -1,42 +1,73 @@
----
-name: poll-draft-emails
-description: Draft poll invitation emails for all participants who haven't been polled yet
-user_invocable: true
----
-
 # /poll-draft-emails
 
-Draft poll invitation emails for each participant who hasn't been polled yet and save them to the outbox.
+**Generate invitation draft email files for participants who haven't been polled yet**
 
-## Setup
+## Overview
 
-1. Read `polls-config.json` from the repo root.
-2. Resolve the active poll folder: `<pollsRoot>/<activePoll>/`.
-3. Read `Poll.md` from the active poll folder.
-4. Read `Poll email template.md` from the active poll folder.
+Creates draft invitation email files in `outbox/` folder for each participant who hasn't received an invitation yet. Updates the poll to mark them as polled.
 
-## Behavior
+This skill:
+- Reads the "Poll email template.md" template
+- Generates personalized emails with timezone-converted date/time choices
+- Creates `outbox/draft-poll-<email>.txt` files
+- Updates Poll.md participant table to mark as polled
+- Reports summary of created drafts
 
-1. Identify participants without a "Polled on" date (empty cell in the Participants table).
-2. If no participants need polling, report that all participants have already been polled and exit.
-3. For each unpolled participant:
-   a. Merge the poll email template following `.claude/skills/poll-shared/template-merge.md`:
-      - Substitute all `{$...$}` fields
-      - Convert date/time choices to the participant's TZ per `.claude/skills/poll-shared/tz-conversion.md`
-      - Expand the `{$DateTimeChoice.N$}` pattern for all choices
-   b. Write a draft file to `outbox/draft-poll-<email>.txt` with the format:
-      ```
-      To: <participant email>
-      Subject: <merged subject>
+## Usage
 
-      <merged body with <br> converted to newlines>
-      ```
-   c. Update the "Polled on" column for this participant in the Participants table of `Poll.md` with the current date/time (in organizer's TZ format: `Mon DD, YYYY, HH:MM`).
-4. Save the updated `Poll.md`.
+```
+/poll-draft-emails
+```
 
-## Output
+No arguments or options.
 
-Report to the organizer:
-- Number of draft emails created
-- List of participants emailed (name + email)
-- Location of draft files in `outbox/`
+## Output Example
+
+```
+Creating poll invitation drafts...
+
+Found 2 unpolled participants:
+  - alice@example.com (Alice Johnson)
+  - bob@example.com (Bob Smith)
+
+Merging templates and creating drafts...
+  ✓ draft-poll-alice@example.com.txt - created
+  ✓ draft-poll-bob@example.com.txt - created
+
+Updated Poll.md: Marked 2 participants as polled on Feb 14, 2026
+
+Summary: 2 invitation drafts created in outbox/
+Next: Review drafts, then run /poll-send-emails to send via Gmail
+```
+
+## File Format
+
+Each draft file is plain text with this format:
+
+```
+To: participant@example.com
+Subject: You're invited: Event Title
+
+[Merged email body with timezone-converted times]
+```
+
+## Error Handling
+
+- No active poll configured → Shows error message
+- Poll.md not found → Shows error message
+- Template file not found → Shows error message
+- No unpolled participants → Shows message and exits
+- Failed to create outbox directory → Shows error message
+
+## Implementation
+
+Uses shared modules:
+- `poll-parser.js` — Parse Poll.md, update participant table
+- `template-engine.js` — Merge template fields
+- `tz-converter.js` — Convert date/times to participant's timezone
+
+## Related Commands
+
+- `/poll-preview` — Preview email before drafting
+- `/poll-send-emails` — Send draft emails via Gmail
+- `/poll-remind` — Draft reminder emails

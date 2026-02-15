@@ -1,3 +1,9 @@
+---
+name: poll-fetch-responses
+description: Retrieve poll responses from Gmail inbox and save as text files
+user_invocable: true
+---
+
 # poll-fetch-responses
 
 Retrieve poll responses from Gmail inbox and save as text files.
@@ -71,35 +77,36 @@ Next: run /poll-process-responses to update Poll.md
 
 ## Prerequisites
 
-- `polls-config.json` configured with `inboxFolder`, `pollsEmailSubjectPrefix`, and `activePoll`
-- Gmail MCP server installed and authenticated
+- `polls-config.json` configured with `inboxFolder`, `pollsEmailSubjectPrefix`, `activePoll`, and optionally `pollsEmailLabel`
+- OAuth2 authentication completed via `/poll-gmail-setup`
 - `Poll.md` exists with participants list (for validation)
-- Valid Gmail API access with read permissions
+- Valid Gmail API credentials with read and modify permissions
 
 ## Error Handling
 
+- **Not authenticated** - Clear message directing user to run `/poll-gmail-setup`
 - **Email from non-participant** - Log as skipped, don't create response file
 - **Malformed email body** - Log error and skip
-- **Missing From/Date headers** - Log error and skip
-- **Gmail API error** - Log detailed error and stop fetching
+- **Missing headers** - Log error and skip
+- **No valid responses in email** - Log as skipped
+- **Gmail API error (401)** - Suggests re-running `/poll-gmail-setup`
 - **File system error** - Log error and skip
 
 ## Implementation Notes
 
-- Uses Gmail MCP tools:
-  - `search_emails` - Find matching emails
-    - Parameters: `query` (string), `maxResults` (number)
-    - Returns: Array of message objects with id, threadId, snippet
-  - `read_email` - Read full message content
-    - Parameters: `messageId` (string)
-    - Returns: from, to, subject, date, textBody, htmlBody, attachments
-  - `modify_labels` - Manage email labels
-    - Parameters: `messageId`, `addLabelIds` (array), `removeLabelIds` (array)
-    - Use label IDs: "UNREAD", "INBOX", "IMPORTANT", or custom label names
+- Uses direct Gmail API via `googleapis` package
+- OAuth2 authentication via `google-auth-library`
+- Credentials stored securely in `~/.gmail-credentials/`
+- Gmail API calls:
+  - `gmail.users.messages.list()` - Search matching emails
+  - `gmail.users.messages.get()` - Read full message content
+  - `gmail.users.messages.modify()` - Remove UNREAD label and add custom labels
+  - `gmail.users.labels.list/create()` - Manage custom labels
 - Creates `inboxFolder` directory if it doesn't exist
 - Response filenames format: `<email>-<unix-timestamp>.txt`
-- Timestamp uses seconds since epoch for unique filenames across multiple responses from same sender
-- Validates response format before saving (must have numbered choices)
+- Timestamp uses seconds since epoch for unique filenames
+- Validates response format before saving (must have at least one numbered choice)
+- Handles multipart emails and HTML-to-text conversion
 
 ## Validation Rules
 

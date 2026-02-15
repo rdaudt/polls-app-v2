@@ -1,0 +1,13 @@
+{
+  "name": "polls-app-v2",
+  "version": "2.0.0",
+  "description": "Command-line poll scheduling service",
+  "dependencies": {
+    "googleapis": "^140.0.0",
+    "google-auth-library": "^9.0.0",
+    "open": "^9.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

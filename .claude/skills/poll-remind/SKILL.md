@@ -1,45 +1,77 @@
----
-name: poll-remind
-description: Draft reminder emails for participants who haven't responded
-user_invocable: true
----
-
 # /poll-remind
 
-Identify participants who have been polled but haven't responded, and draft reminder emails for them.
+**Generate reminder email drafts for participants who haven't responded yet**
 
-## Setup
+## Overview
 
-1. Read `polls-config.json` from the repo root.
-2. Resolve the active poll folder: `<pollsRoot>/<activePoll>/`.
-3. Read `Poll.md` from the active poll folder.
-4. Read `Poll reminder email.md` from the active poll folder.
+Creates reminder email draft files in `outbox/` for each participant who was invited but hasn't responded yet. Updates the poll to mark them as reminded.
 
-## Behavior
+This skill:
+- Reads the "Poll reminder email.md" template
+- Generates personalized reminder emails with timezone-converted date/time choices
+- Creates `outbox/draft-reminder-<email>.txt` files
+- Updates Poll.md participant table to mark as reminded
+- Reports summary of created drafts
 
-1. Identify participants who meet ALL of these criteria:
-   - Have a "Polled on" date (they were sent the poll)
-   - Do NOT have a "(last) Responded on" date (they haven't responded)
-2. If no participants need reminding, report that and exit.
-3. For each participant needing a reminder:
-   a. Merge the reminder email template following `.claude/skills/poll-shared/template-merge.md`:
-      - Substitute all `{$...$}` fields
-      - Convert date/time choices to the participant's TZ per `.claude/skills/poll-shared/tz-conversion.md`
-      - Expand the `{$DateTimeChoice.N$}` pattern for all choices
-      - Set `{$NowDateTime$}` to the current date/time
-   b. Write a draft file to `outbox/draft-reminder-<email>.txt` with the format:
-      ```
-      To: <participant email>
-      Subject: <merged subject>
+## Usage
 
-      <merged body with <br> converted to newlines>
-      ```
-   c. Update the "(last) Reminded on" column for this participant in Poll.md with the current date/time (organizer's TZ format).
-4. Save the updated `Poll.md`.
+```
+/poll-remind
+```
 
-## Output
+No arguments or options.
 
-Report to the organizer:
-- Number of reminder drafts created
-- List of participants reminded (name + email)
-- Location of draft files in `outbox/`
+## Output Example
+
+```
+Creating reminder drafts...
+
+Found 1 non-respondent:
+  - bob@example.com (Bob Smith) - polled on Feb 10, 2026, no response yet
+
+Merging templates and creating drafts...
+  ✓ draft-reminder-bob@example.com.txt - created
+
+Updated Poll.md: Marked 1 participant as reminded on Feb 14, 2026
+
+Summary: 1 reminder draft created in outbox/
+Next: Review drafts, then run /poll-send-emails --type reminder to send
+```
+
+## File Format
+
+Each draft file is plain text with this format:
+
+```
+To: participant@example.com
+Subject: Reminder: Event Title
+
+[Merged email body with timezone-converted times]
+```
+
+## When to Use
+
+- After initial invitation period expires
+- When approaching the response deadline
+- Multiple times to remind non-respondents (updates remindedOn each time)
+
+## Error Handling
+
+- No active poll configured → Shows error message
+- Poll.md not found → Shows error message
+- Template file not found → Shows error message
+- No non-respondents → Shows message and exits
+- Failed to create outbox directory → Shows error message
+
+## Implementation
+
+Uses shared modules:
+- `poll-parser.js` — Parse Poll.md, update participant table
+- `template-engine.js` — Merge template fields
+- `tz-converter.js` — Convert date/times to participant's timezone
+
+## Related Commands
+
+- `/poll-draft-emails` — Generate invitation emails
+- `/poll-send-emails --type reminder` — Send reminders via Gmail
+- `/poll-status` — View response progress

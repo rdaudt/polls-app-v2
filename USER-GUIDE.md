@@ -93,10 +93,10 @@ With Gmail integration:
 
 ### Prerequisites for Gmail Integration
 
-- **Node.js 20+** — Required to run MCP servers
+- **Node.js 20+** — Required to run the app with Gmail integration
 - **Personal Gmail account** (@gmail.com or Google Workspace)
 - **Google Cloud project** with Gmail API enabled
-- **OAuth2 credentials** downloaded as JSON
+- **OAuth2 credentials** downloaded from Google Cloud Console
 
 ### Step 1: Create Google Cloud Project
 
@@ -128,18 +128,27 @@ With Gmail integration:
 
 ### Step 4: Initial Authentication
 
-1. Move the downloaded JSON file to your project directory (rename to `gcp-oauth.keys.json`)
-2. Run authentication:
+1. Save the downloaded JSON file to `~/.gmail-credentials/client_secret.json` in your home directory
    ```bash
-   npx @gongrzhe/server-gmail-autoauth-mcp auth
+   mkdir -p ~/.gmail-credentials
+   cp ~/Downloads/client_secret_*.json ~/.gmail-credentials/client_secret.json
    ```
-3. If prompted, upload or select the `gcp-oauth.keys.json` file
-4. Browser opens with Google sign-in
-5. Select your Gmail account
-6. Grant permissions: "Send email" and "Read email"
-7. Authentication complete — credentials saved to `~/.gmail-mcp/credentials.json`
 
-**Note:** Credentials are stored in your home directory (`~/.gmail-mcp/`), not in the project directory. This is intentional and keeps your git repo clean.
+2. Run the one-time setup skill:
+   ```
+   /poll-gmail-setup
+   ```
+
+3. The skill will:
+   - Verify your client_secret.json file
+   - Open your browser for Google sign-in
+   - Ask you to select your Gmail account
+   - Request permissions: "Send email" and "View email"
+   - Save tokens to `~/.gmail-credentials/credentials.json`
+
+4. When complete, you'll see a confirmation message
+
+**Note:** Credentials are stored in your home directory (`~/.gmail-credentials/`), not in the project directory. This keeps your git repo clean and your credentials secure.
 
 ### Step 5: Update Configuration
 
@@ -160,14 +169,13 @@ Add these fields to your `polls-config.json`:
 
 ### Step 6: Verify Setup
 
-Restart Claude Code to load the Gmail MCP server, then test:
+Test the Gmail integration:
 
 ```
-/poll-send-emails --help
-/poll-fetch-responses --help
+/poll-send-emails --dry-run
 ```
 
-Both commands should display their usage information. If you see errors, check troubleshooting below.
+This will preview what emails would be sent without actually sending them. If you see your draft emails listed, the setup is successful. If you see authentication errors, check troubleshooting below.
 
 ### Using Gmail Integration
 
@@ -219,30 +227,37 @@ Responses are saved to your `inboxFolder` as text files. Then use:
 
 ### Troubleshooting Gmail Setup
 
-**"Command not found: npx" or Node.js not installed**
-- Install [Node.js 20+](https://nodejs.org/)
-- Restart terminal and try again
+**"OAuth client was not found" or "No such file or directory"**
+- Verify `~/.gmail-credentials/client_secret.json` exists
+- Check that you downloaded JSON from "OAuth 2.0 Client IDs" (not service account or API keys)
+- Re-download the credentials JSON file from Google Cloud Console
+- Place it in `~/.gmail-credentials/client_secret.json`
 
-**"Invalid credentials" or "File not found"**
-- Check that `gcp-oauth.keys.json` is in current directory
-- Verify you downloaded JSON from OAuth credentials (not service account)
-- Try running `npx @gongrzhe/server-gmail-autoauth-mcp auth` again
+**"App has not completed verification" during browser auth**
+- This is normal for unverified apps — click "Advanced" and then "Go to Polls App (unsafe)"
+- You may need to add yourself as a test user in Google Cloud Console
+- Go to OAuth consent screen and add your email as a test user
 
-**"Permission denied" when sending**
-- Check that you granted "Send email" permission during browser auth
-- Try re-authenticating: delete `~/.gmail-mcp/credentials.json` and run auth again
-- Verify Gmail account has "Less secure app access" enabled (if using non-Google apps)
+**"Browser won't open for sign-in"**
+- Copy the URL that appears in the console and open it manually in your browser
+- Complete the sign-in process
+- Paste the authorization code back into the console if prompted
 
-**"No tools available" or send_email not found**
-- Restart Claude Code (MCP servers reload on startup)
-- Check that `.claude.json` exists in project root with gmail server configured
-- Run: `npx -y @smithery/cli install @gongrzhe/server-gmail-autoauth-mcp --client claude`
+**"Permission denied" when sending or fetching emails**
+- Check that you granted "Send email" and "View email" permissions during browser auth
+- If stuck, re-authenticate: delete `~/.gmail-credentials/credentials.json` and run `/poll-gmail-setup` again
+- Verify your Google account doesn't have 2FA blocking app access
 
 **"Email not found after fetch"**
-- Check Gmail account directly — is the email in Inbox?
+- Check Gmail account directly — is the email in your Inbox?
 - Try `--all` flag to fetch all, not just unread
-- Check that subject contains "Poll Response:" or your configured prefix
-- Verify `pollsEmailSubjectPrefix` in `polls-config.json` matches your email subjects
+- Check that email subject contains "Poll Response:" or your configured prefix
+- Verify `pollsEmailSubjectPrefix` in `polls-config.json` matches your actual email subjects
+
+**"/poll-gmail-setup command not found"**
+- Ensure you're in the polls-app-v2 directory
+- Check that the `.claude/skills/poll-gmail-setup/` folder exists
+- Restart Claude Code to reload skills
 
 ### Manual Fallback
 

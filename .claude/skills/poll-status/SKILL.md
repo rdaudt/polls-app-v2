@@ -1,35 +1,69 @@
----
-name: poll-status
-description: Display the current state of the active poll (read-only)
-user_invocable: true
----
-
 # /poll-status
 
-Display the current state of the active poll. This is a **read-only** skill — it does not modify any files.
+**Display the current state of the active poll (read-only)**
 
-## Setup
+## Overview
 
-1. Read `polls-config.json` from the repo root.
-2. Resolve the active poll folder: `<pollsRoot>/<activePoll>/`.
-3. Read `Poll.md` from the active poll folder.
+Shows a summary of the active poll including:
+- Event title and organizer info
+- Response deadline
+- Participant count and responses received
+- Vote tally (Yes and As Needed counts for each choice)
+- Current frontrunner with vote counts
+- Non-respondents
 
-## Behavior
+This is a **read-only** command that does not modify any files.
 
-1. Read the **"Current state"** section from Poll.md.
-2. If the Current state section is empty (no `Assessed on` line), report that no responses have been processed yet and suggest running `/poll-process-responses`.
+## Usage
 
-## Important
+```
+/poll-status
+```
 
-- This skill is **read-only**. Do NOT write any files or modify Poll.md.
-- The Current state section is kept up to date by `/poll-process-responses`, which tallies votes and updates the frontrunner every time it runs.
+No arguments or options.
 
-## Output
+## Output Example
 
-Display the following to the organizer:
-- The full numbered list of date/time choices from the "Date/time choices" section
-- Assessed on date/time
-- Count of participants who responded
-- Count of responses
-- Frontrunner choice (and its date/time from the Date/time choices list)
-- Frontrunner choice overwrite (if set by the organizer, with its date/time)
+```
+Poll Status: Team Lunch Planning
+
+Organizer: Alice Johnson (alice@example.com)
+Deadline: Feb 28, 2026
+
+Participants: 2 / 3 responded
+
+Vote Tally:
+  Choice  Date/Time               Yes  As Needed
+  ------  ----------------------  ---  ---------
+  1       Feb 16, 2026, 13:00     2    0
+  2       Feb 17, 2026, 10:00     1    1
+  3       Feb 18, 2026, 15:00     0    2
+
+🏆 Frontrunner: Choice 1 (Feb 16, 2026, 13:00) - 2 Yes, 0 As Needed
+
+Current State:
+  - Invitations sent: Yes
+  - Responses received: 2 / 3
+  - Non-respondents: Bob Smith
+  - Reminders sent: Yes
+```
+
+## Error Handling
+
+- No active poll configured → Shows error message
+- Poll.md file not found → Shows error message
+- No participants → Shows empty tally
+- No responses yet → Shows frontrunner as null
+
+## Implementation
+
+Uses shared modules:
+- `poll-parser.js` — Parse Poll.md
+- `vote-tally.js` — Tally votes and determine frontrunner
+
+## Related Commands
+
+- `/poll-preview` — Preview merged email for a participant
+- `/poll-draft-emails` — Generate invitation emails
+- `/poll-remind` — Draft reminder emails
+- `/poll-wrap-up` — Finalize poll with results

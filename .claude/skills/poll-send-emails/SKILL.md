@@ -85,23 +85,27 @@ Parsed drafts:
 ## Prerequisites
 
 - `polls-config.json` configured with valid `pollsRoot` and `activePoll`
-- Gmail MCP server installed and authenticated
+- OAuth2 authentication completed via `/poll-gmail-setup`
 - Draft files in `<pollsRoot>/<activePoll>/outbox/draft-*.txt` format
-- Valid Gmail API access with send permissions
+- Valid Gmail API credentials with send permission
 
 ## Error Handling
 
+- **Not authenticated** - Clear message directing user to run `/poll-gmail-setup`
 - **Invalid draft format** - Log error and skip
 - **Invalid email address** - Log error and skip
-- **Gmail API error** - Log error with details and skip
-- **Permission denied** - Clear error message directing user to re-authenticate
+- **Gmail API error (401)** - Suggests re-running `/poll-gmail-setup`
+- **Gmail API error (429)** - Rate limited, auto-retries with backoff
+- **Other API errors** - Logs error details and continues with next draft
 
 ## Implementation Notes
 
-- Uses Gmail MCP tool: `send_email`
-- Parameters: `to` (array), `subject` (string), `body` (string), `isHtml` (boolean, set to false)
+- Uses direct Gmail API via `googleapis` package
+- OAuth2 authentication via `google-auth-library`
+- Credentials stored securely in `~/.gmail-credentials/`
 - Plain text emails only (no HTML formatting)
 - Creates `outbox/sent/` directory if it doesn't exist
+- Rate limiting: 1 second delay between batches (max 10 per batch)
 - Preserves original draft files in `outbox/` (copies to sent, doesn't delete)
 
 ## See Also

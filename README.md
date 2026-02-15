@@ -203,7 +203,7 @@ Each line specifies their response (`Yes` or `As Needed`) for each date/time cho
 ## Requirements
 
 - **Claude Code CLI** — Download from [claude.com/claude-code](https://claude.com/claude-code)
-- **Node.js 20+** — Required for MCP servers (optional, only if using Gmail integration)
+- **Node.js 20+** — Required for Gmail integration (optional; manual workflow needs only email client)
 - **Polls directory** — A folder on your system to store poll data
 - **Email client** — For sending and receiving poll emails (required for manual workflow only)
 
@@ -212,8 +212,8 @@ Each line specifies their response (`Yes` or `As Needed`) for each date/time cho
 To enable automated email sending and response collection, set up Gmail OAuth2:
 
 1. Create a Google Cloud project with Gmail API enabled
-2. Create OAuth2 credentials (Desktop app type)
-3. Run authentication: `npx @gongrzhe/server-gmail-autoauth-mcp auth`
+2. Create OAuth2 credentials (Desktop application type)
+3. Run one-time setup: `/poll-gmail-setup`
 4. Update `polls-config.json` with `pollsEmailSubjectPrefix` and `pollsEmailLabel`
 
 See [USER-GUIDE.md](USER-GUIDE.md#gmail-integration) for detailed setup instructions.

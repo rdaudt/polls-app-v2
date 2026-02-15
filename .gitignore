@@ -9,6 +9,12 @@ Polls/
 .claude/settings.local.json
 .claude.json
 
+# Gmail credentials and auth tokens
+~/.gmail-credentials/
+.gmail-credentials/
+gcp-oauth.keys.json
+client_secret.json
+
 # Python
 *.pyc
 __pycache__/

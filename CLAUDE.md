@@ -103,10 +103,26 @@ The polls system includes **optional** Gmail integration for automated email sen
 
 ### Architecture
 
-- **MCP Server**: `@gongrzhe/server-gmail-autoauth-mcp` (Google's Gmail API wrapper)
+- **API Library**: `googleapis` npm package (direct Gmail API v1 client)
 - **Authentication**: OAuth2 with refresh tokens (one-time setup via browser)
-- **Credentials**: Stored globally in `~/.gmail-mcp/credentials.json` (not in project)
+- **Credentials Storage**: `~/.gmail-credentials/` directory (outside git repo)
+  - `client_secret.json` — OAuth2 credentials from Google Cloud Console (downloaded once)
+  - `credentials.json` — Refresh/access tokens (auto-managed)
 - **Fallback**: Manual workflow always available if Gmail integration disabled
+
+### Implementation
+
+Core modules:
+- `.claude/skills/poll-shared/gmail-auth.js` — OAuth2 authentication and token management
+- `.claude/skills/poll-shared/gmail-helpers.js` — Email encoding, parsing, label management utilities
+- `.claude/skills/poll-gmail-setup/` — One-time authentication setup skill
+
+API calls:
+- `gmail.users.messages.send()` — Send emails
+- `gmail.users.messages.list()` — Search Gmail inbox
+- `gmail.users.messages.get()` — Read full email content
+- `gmail.users.messages.modify()` — Mark as read, add/remove labels
+- `gmail.users.labels.list/create()` — Manage custom labels
 
 ### Configuration
 
@@ -116,20 +132,29 @@ Gmail integration uses additional fields in `polls-config.json`:
 
 ### Skills
 
-Two new skills enable automated workflow:
+Three skills handle Gmail workflow:
+- `/poll-gmail-setup` — One-time OAuth2 authentication
+  - Opens browser for user authorization
+  - Saves tokens securely to `~/.gmail-credentials/`
+  - Validates setup before completion
 - `/poll-send-emails` — Send draft emails via Gmail API
   - Optional flags: `--dry-run`, `--type poll|reminder|results`
   - Moves sent drafts to `outbox/sent/` folder
+  - Rate-limited batch processing (1s between batches)
 - `/poll-fetch-responses` — Retrieve poll responses from Gmail
   - Optional flags: `--keep-unread`, `--all`
   - Saves responses as text files to inbox folder
+  - Validates senders against participants list
+  - Marks emails as read and applies labels
 
 ### Security
 
-- Refresh tokens are long-lived (no expiration unless user revokes)
+- Tokens stored in home directory (outside project repo)
+- File permissions set to 600 (owner read/write only)
+- Refresh tokens never expire unless user revokes access
 - Short-lived access tokens auto-refresh transparently
-- Credentials stored globally at `~/.gmail-mcp/` (outside git repo)
-- OAuth2 scopes limited to `gmail.send` and `gmail.readonly`
+- OAuth2 scopes limited to minimum required: `gmail.send`, `gmail.readonly`, `gmail.modify`
+- No sensitive data logged in error messages
 
 ### Setup Instructions
 
