@@ -12,30 +12,64 @@ const gmailAuth = require('../poll-shared/gmail-auth');
 const gmailHelpers = require('../poll-shared/gmail-helpers');
 
 /**
- * Parse Poll.md to get list of participants
+ * Parse Poll.md to get participants and event metadata
  */
-function parseParticipants(pollMdPath) {
+function parsePollMd(pollMdPath) {
   try {
     const content = fs.readFileSync(pollMdPath, 'utf8');
     const participants = new Set();
+    let eventTitle = '';
+    let organizerEmail = '';
+    const polledOnDates = [];
 
-    // Look for Participants section and extract emails
+    // Extract event title
+    const eventMatch = content.match(/^Event name:\s*(.+)$/m);
+    if (eventMatch) {
+      eventTitle = eventMatch[1].trim();
+    }
+
+    // Extract organizer email (to exclude sent emails)
+    const orgEmailMatch = content.match(/^Organizer email:\s*(.+)$/m);
+    if (orgEmailMatch) {
+      organizerEmail = orgEmailMatch[1].trim().toLowerCase();
+    }
+
+    // Look for Participants section and extract emails + polled-on dates
     const participantsMatch = content.match(/## Participants[\s\S]*?(?=##|$)/);
     if (participantsMatch) {
       const lines = participantsMatch[0].split('\n');
+      let polledOnCol = -1;
+
       for (const line of lines) {
-        // Match email pattern
+        if (line.includes('----')) continue;
+
+        // Parse header row to find "Polled on" column index
+        if (polledOnCol < 0 && line.toLowerCase().includes('polled on')) {
+          const cols = line.split('|').map(c => c.trim());
+          polledOnCol = cols.findIndex(c => c.toLowerCase() === 'polled on');
+          continue;
+        }
+
         const emailMatch = line.match(/[\w.-]+@[\w.-]+\.\w+/);
         if (emailMatch) {
           participants.add(emailMatch[0].toLowerCase());
+
+          // Extract polled-on date from the same row
+          if (polledOnCol >= 0) {
+            const cols = line.split('|').map(c => c.trim());
+            const polledOn = cols[polledOnCol];
+            if (polledOn) {
+              polledOnDates.push(polledOn);
+            }
+          }
         }
       }
     }
 
-    return participants;
+    return { participants, eventTitle, organizerEmail, polledOnDates };
   } catch (err) {
-    logger.error('Error parsing participants: ' + err.message);
-    return new Set();
+    logger.error('Error parsing Poll.md: ' + err.message);
+    return { participants: new Set(), eventTitle: '', organizerEmail: '', polledOnDates: [] };
   }
 }
 
@@ -49,6 +83,18 @@ function formatDate(dateString) {
   } catch {
     return dateString;
   }
+}
+
+/**
+ * Parse a "Polled on" date string (e.g., "Feb 15, 2026, 09:00") into a Date object
+ */
+function parsePolledOnDate(dateStr) {
+  const months = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
+  const match = dateStr.match(/(\w{3})\s+(\d{1,2}),\s*(\d{4})/);
+  if (!match) return null;
+  const [, mon, day, year] = match;
+  if (!(mon in months)) return null;
+  return new Date(parseInt(year), months[mon], parseInt(day));
 }
 
 async function main() {
@@ -67,11 +113,7 @@ async function main() {
       process.exit(1);
     }
 
-    // Validate config
-    if (!config.pollsEmailSubjectPrefix) {
-      logger.error('pollsEmailSubjectPrefix not set in polls-config.json');
-      process.exit(1);
-    }
+    // pollsEmailSubjectPrefix is optional — search also uses event title
 
     // Check Gmail authentication
     if (!gmailAuth.isAuthenticated()) {
@@ -99,18 +141,55 @@ async function main() {
       fs.mkdirSync(inboxFolder, { recursive: true });
     }
 
-    // Parse participants from Poll.md
-    const participants = parseParticipants(pollMdPath);
+    // Parse participants and event metadata from Poll.md
+    const { participants, eventTitle, organizerEmail, polledOnDates } = parsePollMd(pollMdPath);
     if (participants.size === 0) {
       logger.warn('No participants found in Poll.md');
     } else {
       logger.debug('Found ' + participants.size + ' participant(s)');
     }
 
-    // Build search query
-    const query = fetchAll
-      ? 'subject:"' + config.pollsEmailSubjectPrefix + '"'
-      : 'is:unread subject:"' + config.pollsEmailSubjectPrefix + '"';
+    // Build smart search query using multiple signals:
+    // 1. from: participant emails (required — only emails from known participants)
+    // 2. subject: event title OR configured prefix OR "Date/Time Poll" (catches replies)
+    // 3. after: earliest polled-on date (scopes to current poll run)
+    // 4. is:unread filter (unless --all)
+    const participantEmails = Array.from(participants);
+    const fromClause = participantEmails.length > 0
+      ? 'from:(' + participantEmails.join(' OR ') + ')'
+      : '';
+
+    const subjectTerms = [];
+    if (eventTitle) {
+      subjectTerms.push('subject:"' + eventTitle + '"');
+    }
+    if (config.pollsEmailSubjectPrefix) {
+      subjectTerms.push('subject:"' + config.pollsEmailSubjectPrefix + '"');
+    }
+    subjectTerms.push('subject:"Date/Time Poll"');
+
+    // Gmail OR syntax: {term1 term2} means OR
+    const subjectClause = subjectTerms.length > 1
+      ? '{' + subjectTerms.join(' ') + '}'
+      : subjectTerms[0] || '';
+
+    // Date filter: only fetch emails after invitations were sent
+    let afterClause = '';
+    if (polledOnDates.length > 0) {
+      const dates = polledOnDates.map(parsePolledOnDate).filter(d => d && !isNaN(d.getTime()));
+      if (dates.length > 0) {
+        dates.sort((a, b) => a - b);
+        const earliest = dates[0];
+        const yyyy = earliest.getFullYear();
+        const mm = String(earliest.getMonth() + 1).padStart(2, '0');
+        const dd = String(earliest.getDate()).padStart(2, '0');
+        afterClause = 'after:' + yyyy + '/' + mm + '/' + dd;
+        logger.debug('Date filter: ' + afterClause);
+      }
+    }
+
+    const readFilter = fetchAll ? '' : 'is:unread';
+    const query = [fromClause, subjectClause, afterClause, readFilter].filter(Boolean).join(' ');
 
     logger.debug('Searching for: ' + query);
 
@@ -135,10 +214,11 @@ async function main() {
       process.exit(0);
     }
 
-    // Process each message
+    // Phase 1: Fetch all messages and extract metadata
     let fetched = 0;
     let skipped = 0;
     let errors = 0;
+    let dedupSkipped = 0;
 
     logger.info('Processing responses:');
 
@@ -148,9 +228,9 @@ async function main() {
       labelId = await gmailHelpers.getOrCreateLabel(gmail, config.pollsEmailLabel);
     }
 
+    const messageDetails = [];
     for (const message of messages) {
       try {
-        // Fetch full message
         const res = await gmail.users.messages.get({
           userId: 'me',
           id: message.id,
@@ -159,102 +239,134 @@ async function main() {
 
         const msg = res.data;
         const headers = msg.payload.headers || [];
-
-        // Extract headers
         const from = headers.find(h => h.name === 'From')?.value || '';
         const date = headers.find(h => h.name === 'Date')?.value || '';
         const subject = headers.find(h => h.name === 'Subject')?.value || '';
-
-        // Extract email from "Name <email@domain.com>" format
         const emailMatch = from.match(/[\w.-]+@[\w.-]+\.\w+/);
         const senderEmail = emailMatch ? emailMatch[0].toLowerCase() : '';
 
-        if (!senderEmail) {
-          logger.warn('  ' + from + ' - skipped (invalid email)');
-          skipped++;
-          continue;
-        }
-
-        // Validate sender is a participant
-        if (!participants.has(senderEmail)) {
-          logger.warn('  ' + senderEmail + ' - skipped (not in participants list)');
-          skipped++;
-          continue;
-        }
-
-        // Parse email body
-        const bodyText = gmailHelpers.parseEmailBody(msg);
-        if (!bodyText) {
-          logger.warn('  ' + senderEmail + ' - skipped (no body text)');
-          skipped++;
-          continue;
-        }
-
-        // Extract responses
-        const responses = gmailHelpers.extractResponses(bodyText);
-        if (responses.length === 0) {
-          logger.warn('  ' + senderEmail + ' - skipped (no valid responses found)');
-          skipped++;
-          continue;
-        }
-
-        // Format response file
-        const responseContent = gmailHelpers.formatResponseFile(
-          senderEmail,
-          formatDate(date),
+        messageDetails.push({
+          id: message.id,
+          msg,
+          from,
+          date,
           subject,
-          responses
-        );
-
-        // Generate filename: email-timestamp.txt
-        const timestamp = Math.floor(new Date(date).getTime() / 1000);
-        const sanitizedEmail = gmailHelpers.sanitizeFilename(senderEmail);
-        const filename = `${sanitizedEmail}-${timestamp}.txt`;
-        const filePath = path.join(inboxFolder, filename);
-
-        // Save response file
-        fs.writeFileSync(filePath, responseContent, 'utf8');
-
-        logger.success('  ' + senderEmail + ' - saved as ' + filename);
-
-        // Mark as read unless --keep-unread
-        if (!keepUnread) {
-          try {
-            await gmail.users.messages.modify({
-              userId: 'me',
-              id: message.id,
-              requestBody: {
-                removeLabelIds: ['UNREAD']
-              }
-            });
-          } catch (err) {
-            logger.warn('    Could not mark as read: ' + err.message);
-          }
-        }
-
-        // Apply label if configured
-        if (labelId) {
-          try {
-            await gmail.users.messages.modify({
-              userId: 'me',
-              id: message.id,
-              requestBody: {
-                addLabelIds: [labelId]
-              }
-            });
-          } catch (err) {
-            logger.warn('    Could not apply label: ' + err.message);
-          }
-        }
-
-        fetched++;
+          senderEmail,
+          dateMs: new Date(date).getTime()
+        });
       } catch (err) {
-        logger.error('  Error processing message ' + message.id + ': ' + err.message);
+        logger.error('  Error fetching message ' + message.id + ': ' + err.message);
         errors++;
       }
     }
 
+    // Phase 2: Dedup — keep only the newest message per sender
+    const newestPerSender = new Map();
+    for (const detail of messageDetails) {
+      if (!detail.senderEmail) continue;
+      const existing = newestPerSender.get(detail.senderEmail);
+      if (!existing || detail.dateMs > existing.dateMs) {
+        newestPerSender.set(detail.senderEmail, detail);
+      }
+    }
+    const keptMessageIds = new Set(Array.from(newestPerSender.values()).map(d => d.id));
+    if (messageDetails.length > keptMessageIds.size) {
+      logger.debug('Dedup: keeping ' + keptMessageIds.size + ' of ' + messageDetails.length + ' messages (newest per participant)');
+    }
+
+    // Phase 3: Process messages — save only newest per sender, manage read/labels for all
+    for (const detail of messageDetails) {
+      const { id, msg, from, date, subject, senderEmail } = detail;
+      const isNewest = keptMessageIds.has(id);
+
+      if (!senderEmail) {
+        logger.warn('  ' + from + ' - skipped (invalid email)');
+        skipped++;
+        continue;
+      }
+
+      // Mark as read and apply label for ALL messages (not just newest)
+      if (!keepUnread) {
+        try {
+          await gmail.users.messages.modify({
+            userId: 'me',
+            id,
+            requestBody: { removeLabelIds: ['UNREAD'] }
+          });
+        } catch (err) {
+          logger.warn('  Could not mark as read: ' + err.message);
+        }
+      }
+      if (labelId) {
+        try {
+          await gmail.users.messages.modify({
+            userId: 'me',
+            id,
+            requestBody: { addLabelIds: [labelId] }
+          });
+        } catch (err) {
+          logger.warn('  Could not apply label: ' + err.message);
+        }
+      }
+
+      // Only save response file for the newest message per participant
+      if (!isNewest) {
+        logger.debug('  ' + senderEmail + ' - skipped older response (' + date + ')');
+        dedupSkipped++;
+        continue;
+      }
+
+      // Validate sender is a participant
+      if (!participants.has(senderEmail)) {
+        logger.warn('  ' + senderEmail + ' - skipped (not in participants list)');
+        skipped++;
+        continue;
+      }
+
+      // Parse email body
+      const bodyText = gmailHelpers.parseEmailBody(msg);
+      if (!bodyText) {
+        logger.warn('  ' + senderEmail + ' - skipped (no body text)');
+        skipped++;
+        continue;
+      }
+
+      // Extract responses
+      const responses = gmailHelpers.extractResponses(bodyText);
+      if (responses.length === 0) {
+        logger.warn('  ' + senderEmail + ' - skipped (no valid responses found)');
+        if (bodyText) {
+          logger.debug('    Body preview: ' + bodyText.substring(0, 200).replace(/\n/g, '\\n'));
+        }
+        skipped++;
+        continue;
+      }
+
+      // Format response file
+      const responseContent = gmailHelpers.formatResponseFile(
+        senderEmail,
+        formatDate(date),
+        subject,
+        responses
+      );
+
+      // Generate filename: email-timestamp.txt
+      const timestamp = Math.floor(new Date(date).getTime() / 1000);
+      const sanitizedEmail = gmailHelpers.sanitizeFilename(senderEmail);
+      const filename = `${sanitizedEmail}-${timestamp}.txt`;
+      const filePath = path.join(inboxFolder, filename);
+
+      // Save response file
+      fs.writeFileSync(filePath, responseContent, 'utf8');
+
+      logger.success('  ' + senderEmail + ' - saved as ' + filename);
+      fetched++;
+    }
+
     logger.info('Summary: ' + fetched + ' responses fetched, ' + skipped + ' skipped');
+    if (dedupSkipped > 0) {
+      logger.info(dedupSkipped + ' older duplicate(s) skipped');
+    }
     if (errors > 0) {
       logger.info(errors + ' errors encountered');
     }
