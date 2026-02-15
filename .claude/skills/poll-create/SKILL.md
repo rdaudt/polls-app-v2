@@ -16,10 +16,13 @@ Create a new poll by reading from a Poll init.md file (if available) or by inter
 
 ### Option A: Parse Poll init.md (if file exists)
 
-The skill will attempt to use a Poll init.md file if available. The file location is determined in this order:
+**Important**: `Poll init.md` files belong only in the poll folder (after the folder is created), not at the polls root. If a file path argument is provided, use that. Otherwise, check for `Poll init.md` in the active poll folder being created. Files at the polls root level should be ignored.
+
+The file location is determined in this order:
 1. If a file path argument is provided to the skill, use that path
-2. Otherwise, check for `Poll init.md` in the `pollsRoot` directory (default location)
-3. If no init file is found at either location, proceed to interactive collection (Option B)
+2. Otherwise, check for `Poll init.md` in the active poll folder (e.g., `<pollsRoot>/<activePoll>/Poll init.md`)
+3. If no init file is found, proceed to interactive collection (Option B)
+4. **Note**: Ignore any `Poll init.md` files at the polls root (`<pollsRoot>/Poll init.md`) — these should not be used
 
 **Parsing Procedure:**
 
@@ -64,9 +67,9 @@ After parsing Poll init.md, validate the collected data:
    - Prompt the user interactively for missing or invalid fields only
    - Allow correction of one field at a time until validation passes
 
-### Option B: Interactive Collection (if no init file or validation prompts needed)
+### Option B: Interactive Collection (if no poll-level init file or validation prompts needed)
 
-If no Poll init.md file is found, or if the organizer needs to correct missing/invalid fields, ask for details interactively:
+If no `Poll init.md` file is found in the active poll folder, or if the organizer needs to correct missing/invalid fields, ask for details interactively:
 
 1. **Poll title** (e.g., "PanCanada Monthly Meeting Feb 2026")
 2. **Event name** (defaults to the poll title if not specified)
@@ -104,7 +107,10 @@ If no Poll init.md file is found, or if the organizer needs to correct missing/i
 ## Output
 
 Confirm to the organizer:
-- Data source used (either path to Poll init.md file or "interactive collection")
+- Data source used:
+  - If using a poll-level `Poll init.md` file: path to `<pollsRoot>/<activePoll>/Poll init.md`
+  - If using a file path argument: the provided path
+  - If interactive: "interactive collection"
 - Poll folder created at `<path>`
 - Number of participants added
 - Number of date/time choices

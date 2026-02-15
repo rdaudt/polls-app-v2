@@ -1,12 +1,13 @@
 /**
  * Poll Remind Skill
- * 
+ *
  * Generates reminder draft emails for participants who haven't responded yet.
  * Creates draft-reminder-*.txt files in the outbox folder.
  */
 
 const fs = require('fs');
 const path = require('path');
+const logger = require('../poll-shared/logger');
 const { parsePollFile, updateParticipantRow } = require('../poll-shared/poll-parser');
 const { mergeTemplate, extractSubjectAndBody } = require('../poll-shared/template-engine');
 
@@ -63,14 +64,14 @@ async function main() {
     );
 
     if (nonRespondents.length === 0) {
-      console.log('\nAll participants have responded or haven\'t been polled yet.');
+      logger.warn('All participants have responded or haven\'t been polled yet.');
       return;
     }
 
-    console.log(`\nCreating reminder drafts...\n`);
-    console.log(`Found ${nonRespondents.length} non-respondent${nonRespondents.length !== 1 ? 's' : ''}:`);
+    logger.info(`\nCreating reminder drafts...\n`);
+    logger.info(`Found ${nonRespondents.length} non-respondent${nonRespondents.length !== 1 ? 's' : ''}:`);
     nonRespondents.forEach(p => {
-      console.log(`  - ${p.email} (${p.name}) - polled on ${p.polledOn}, no response yet`);
+      logger.debug(`  - ${p.email} (${p.name}) - polled on ${p.polledOn}, no response yet`);
     });
 
     // Read template
@@ -82,7 +83,7 @@ async function main() {
     const templateContent = fs.readFileSync(templatePath, 'utf-8');
     const formattedDate = getFormattedDate();
 
-    console.log('\nMerging templates and creating drafts...');
+    logger.info('\nMerging templates and creating drafts...');
 
     // Generate reminders for each non-respondent
     for (const participant of nonRespondents) {
@@ -102,7 +103,7 @@ async function main() {
         const draftContent = `To: ${participant.email}\nSubject: ${subject}\n\n${body}`;
         fs.writeFileSync(draftPath, draftContent, 'utf-8');
 
-        console.log(`  ✓ ${draftFilename} - created`);
+        logger.debug(`${draftFilename} - created`);
 
         // Update participant row in Poll.md
         updateParticipantRow(pollFilePath, participant.email, {
@@ -110,21 +111,24 @@ async function main() {
         });
 
       } catch (error) {
-        console.error(`  ✗ Failed for ${participant.email}: ${error.message}`);
+        logger.error(`Failed for ${participant.email}: ${error.message}`);
       }
     }
 
-    console.log(`\nUpdated Poll.md: Marked ${nonRespondents.length} participant${nonRespondents.length !== 1 ? 's' : ''} as reminded on ${formattedDate}`);
-    console.log(`\nSummary: ${nonRespondents.length} reminder draft${nonRespondents.length !== 1 ? 's' : ''} created in outbox/`);
-    console.log('Next: Review drafts, then run /poll-send-emails --type reminder to send\n');
+    logger.info(`\nUpdated Poll.md: Marked ${nonRespondents.length} participant${nonRespondents.length !== 1 ? 's' : ''} as reminded on ${formattedDate}`);
+    if (logger.isVerbose()) {
+      logger.info(`Summary: ${nonRespondents.length} reminder draft${nonRespondents.length !== 1 ? 's' : ''} created in outbox/`);
+      logger.info('Next: Review drafts, then run /poll-send-emails --type reminder to send\n');
+    }
+    logger.summary(`${nonRespondents.length} reminder draft${nonRespondents.length !== 1 ? 's' : ''} created`);
 
   } catch (error) {
-    console.error(`Error: ${error.message}`);
+    logger.error(`Error: ${error.message}`);
     process.exit(1);
   }
 }
 
 main().catch(error => {
-  console.error(`Fatal error: ${error.message}`);
+  logger.error(`Fatal error: ${error.message}`);
   process.exit(1);
 });

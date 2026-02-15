@@ -11,52 +11,27 @@ Retrieve poll responses from Gmail inbox and save as text files.
 ## Usage
 
 ```
-/poll-fetch-responses [--keep-unread] [--all]
+/poll-fetch-responses [--keep-unread] [--all]              # Quiet mode (default)
+/poll-fetch-responses [--keep-unread] [--all] --verbose    # Verbose mode with details
 ```
 
-## Arguments
+### Arguments
 
 - `--keep-unread` (optional) - Don't mark fetched emails as read (useful for testing)
 - `--all` (optional) - Fetch all poll response emails, not just unread ones
+- `--verbose` (optional) - Show detailed progress information
 
-## Description
+### Quiet Mode (Default)
 
-This skill searches Gmail for poll response emails and saves them as text files in the inbox folder. Responses are then ready to be processed by `/poll-process-responses`.
+By default, output is minimal - just the final result:
 
-### Workflow
+```
+Fetched 2 response(s), 1 skipped
+```
 
-1. Read `polls-config.json` to get:
-   - `inboxFolder` - where to save response files
-   - `pollsEmailSubjectPrefix` - subject prefix to filter on (e.g., "Poll Response:")
-   - `activePoll` - for validation against participants
-2. Search Gmail using query:
-   - By default: `is:unread subject:"Poll Response:"`
-   - With `--all`: `subject:"Poll Response:"`
-3. For each matching email:
-   - Read full message content using `read_email` tool
-   - Extract: From, Date, Subject, Body
-   - Parse numbered choices from body (e.g., "1: Yes", "2: As Needed")
-   - Validate sender email is in participants list in Poll.md
-   - Create response file: `<inboxFolder>/<email>-<timestamp>.txt`
-   - Format:
-     ```
-     From: participant@example.com
-     Date: 2026-02-12 14:30:00 UTC
-     Subject: Re: Your poll: Team lunch planning
+### Verbose Mode
 
-     1: Yes
-     2: As Needed
-     ```
-   - Mark message as read (remove UNREAD label) unless `--keep-unread` flag
-   - Optionally add custom label: "Polls/Responses"
-4. Report summary: X responses fetched, Y skipped (invalid sender), Z errors
-
-### Flags
-
-- **--keep-unread** - Don't mark fetched emails as read. Useful for testing the fetch process without consuming messages.
-- **--all** - Fetch all matching emails, not just unread. Useful to re-fetch responses or recover missed emails.
-
-## Output
+For detailed progress information, use the `--verbose` flag:
 
 ```
 Fetching poll responses from Gmail...
@@ -65,9 +40,9 @@ Searching for: is:unread subject:Poll Response:
 Found 3 messages
 
 Processing responses:
-  ✓ alice@example.com (2026-02-12 14:30:00 UTC) - saved as alice@example.com-1707746400.txt
-  ✓ bob@example.com (2026-02-12 15:45:00 UTC) - saved as bob@example.com-1707750300.txt
-  ✗ unknown@example.com (2026-02-12 16:00:00 UTC) - skipped (not in participants list)
+  alice@example.com (2026-02-12 14:30:00 UTC) - saved as alice@example.com-1707746400.txt
+  bob@example.com (2026-02-12 15:45:00 UTC) - saved as bob@example.com-1707750300.txt
+  unknown@example.com (2026-02-12 16:00:00 UTC) - skipped (not in participants list)
 
 Summary: 2 responses fetched, 1 skipped
 

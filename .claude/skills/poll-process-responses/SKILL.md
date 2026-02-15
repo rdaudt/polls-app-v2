@@ -16,10 +16,44 @@ Reads response files from the inbox, parses participant choices, performs timezo
 ## Usage
 
 ```
-/poll-process-responses
+/poll-process-responses              # Quiet mode (default)
+/poll-process-responses --verbose    # Verbose mode with details
 ```
 
 No arguments or options. Processes all unprocessed response files in the inbox.
+
+### Quiet Mode (Default)
+
+By default, output is minimal - just the final result:
+
+```
+Processed 2 response(s), 0 skipped
+```
+
+### Verbose Mode
+
+For detailed progress information, use the `--verbose` flag:
+
+```
+Processing poll responses...
+
+Found 2 response files in inbox/
+
+Processing:
+  alice@example.com-1707746400.txt - 3 choices recorded
+  bob@example.com-1707750300.txt - 3 choices recorded
+
+Updated Poll.md:
+  - Recorded 6 total responses (3 per participant)
+  - Marked 2 participants as responded
+  - Updated vote tally
+  - Current frontrunner: Choice 1 (Feb 16, 2026, 13:00)
+
+Moved 2 response files to inbox/processed/
+
+Summary: 2 responses processed, 0 skipped
+Next: Run /poll-status to see updated tally
+```
 
 ## Response File Format
 
@@ -36,29 +70,6 @@ Subject: Re: You're invited: Event Title
 ```
 
 Each line after the blank line contains: `<choice_number>: <Yes|As Needed>`
-
-## Output Example
-
-```
-Processing poll responses...
-
-Found 2 response files in inbox/
-
-Processing:
-  ✓ alice@example.com-1707746400.txt - 3 choices recorded
-  ✓ bob@example.com-1707750300.txt - 3 choices recorded
-
-Updated Poll.md:
-  - Recorded 6 total responses (3 per participant)
-  - Marked 2 participants as responded
-  - Updated vote tally
-  - Current frontrunner: Choice 1 (Feb 16, 2026, 13:00)
-
-Moved 2 response files to inbox/processed/
-
-Summary: 2 responses processed, 0 skipped
-Next: Run /poll-status to see updated tally
-```
 
 ## How It Works
 

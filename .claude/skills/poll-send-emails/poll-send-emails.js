@@ -7,6 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const logger = require('../poll-shared/logger');
 const gmailAuth = require('../poll-shared/gmail-auth');
 const gmailHelpers = require('../poll-shared/gmail-helpers');
 
@@ -22,7 +23,7 @@ async function main() {
       const configPath = path.join(process.cwd(), 'polls-config.json');
       config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     } catch (err) {
-      console.error('✗ Error loading polls-config.json:', err.message);
+      logger.error('Error loading polls-config.json: ' + err.message);
       process.exit(1);
     }
 
@@ -32,24 +33,24 @@ async function main() {
 
     // Check Gmail authentication
     if (!gmailAuth.isAuthenticated()) {
-      console.error('\n✗ Gmail not configured');
-      console.error('Run: /poll-gmail-setup');
+      logger.error('Gmail not configured');
+      logger.error('Run: /poll-gmail-setup');
       process.exit(1);
     }
 
     const authClient = await gmailAuth.getAuthClient();
     if (!authClient) {
-      console.error('\n✗ Gmail authentication failed');
-      console.error('Run: /poll-gmail-setup');
+      logger.error('Gmail authentication failed');
+      logger.error('Run: /poll-gmail-setup');
       process.exit(1);
     }
 
     const gmail = gmailAuth.createGmailClient(authClient);
-    console.log('\n📧 Sending poll emails' + (dryRun ? ' (dry-run mode)' : '') + '...\n');
+    logger.info('Sending poll emails' + (dryRun ? ' (dry-run mode)' : '') + '...\n');
 
     // Scan outbox for draft files
     if (!fs.existsSync(outboxFolder)) {
-      console.log('No outbox folder found. Run /poll-draft-emails first.');
+      logger.warn('No outbox folder found. Run /poll-draft-emails first.');
       process.exit(0);
     }
 
@@ -57,7 +58,7 @@ async function main() {
       .filter(f => f.startsWith('draft-') && f.endsWith('.txt'));
 
     if (draftFiles.length === 0) {
-      console.log('No draft files found in ' + outboxFolder);
+      logger.warn('No draft files found in ' + outboxFolder);
       process.exit(0);
     }
 
@@ -66,8 +67,8 @@ async function main() {
     if (typeFilter) {
       const validTypes = ['poll', 'reminder', 'results'];
       if (!validTypes.includes(typeFilter)) {
-        console.error(`✗ Invalid type: ${typeFilter}`);
-        console.error(`Valid types: ${validTypes.join(', ')}`);
+        logger.error(`Invalid type: ${typeFilter}`);
+        logger.error(`Valid types: ${validTypes.join(', ')}`);
         process.exit(1);
       }
       filteredFiles = draftFiles.filter(f => f.includes(`draft-${typeFilter}-`));
@@ -80,12 +81,12 @@ async function main() {
         const content = fs.readFileSync(path.join(outboxFolder, file), 'utf8');
         const parsed = gmailHelpers.parseDraftFile(content);
         if (!parsed) {
-          console.error(`✗ Invalid format in ${file}`);
+          logger.error(`Invalid format in ${file}`);
           continue;
         }
 
         if (!gmailHelpers.isValidEmail(parsed.to)) {
-          console.error(`✗ Invalid email address in ${file}: ${parsed.to}`);
+          logger.error(`Invalid email address in ${file}: ${parsed.to}`);
           continue;
         }
 
@@ -94,28 +95,27 @@ async function main() {
           ...parsed
         });
       } catch (err) {
-        console.error(`✗ Error reading ${file}:`, err.message);
+        logger.error(`Error reading ${file}: ${err.message}`);
       }
     }
 
     if (drafts.length === 0) {
-      console.log('No valid draft files to send.');
+      logger.warn('No valid draft files to send.');
       process.exit(0);
     }
 
-    console.log(`Parsed ${drafts.length} draft(s):\n`);
+    logger.info(`Parsed ${drafts.length} draft(s):\n`);
     for (const draft of drafts) {
-      console.log(`  - to: ${draft.to}, subject: "${draft.subject}"`);
+      logger.debug(`  - to: ${draft.to}, subject: "${draft.subject}"`);
     }
 
     if (dryRun) {
-      console.log(`\n[DRY RUN] Would send ${drafts.length} email(s). ` +
-                  'Re-run without --dry-run to actually send.\n');
+      logger.info(`[DRY RUN] Would send ${drafts.length} email(s). Re-run without --dry-run to actually send.\n`);
       process.exit(0);
     }
 
     // Send emails with rate limiting
-    console.log(`\nSending... (${drafts.length} total)\n`);
+    logger.info(`Sending... (${drafts.length} total)\n`);
 
     let sent = 0;
     let failed = 0;
@@ -140,7 +140,7 @@ async function main() {
             }
           });
 
-          console.log(`✓ ${draft.to} - sent`);
+          logger.debug(`${draft.to} - sent`);
 
           // Move to sent folder
           const sourcePath = path.join(outboxFolder, draft.filename);
@@ -149,7 +149,7 @@ async function main() {
 
           sent++;
         } catch (err) {
-          console.error(`✗ ${draft.to} - failed:`, err.message);
+          logger.error(`${draft.to} - failed: ${err.message}`);
           failed++;
         }
       }
@@ -160,12 +160,15 @@ async function main() {
       }
     }
 
-    console.log(`\nSummary: ${sent} sent, ${failed} failed`);
-    console.log(`Moved ${sent} draft(s) to outbox/sent/\n`);
+    if (logger.isVerbose()) {
+      logger.info(`Summary: ${sent} sent, ${failed} failed`);
+      logger.info(`Moved ${sent} draft(s) to outbox/sent/\n`);
+    }
+    logger.summary(`${sent} email(s) sent, ${failed} failed`);
 
     process.exit(failed > 0 ? 1 : 0);
   } catch (err) {
-    console.error('✗ Error:', err.message);
+    logger.error('Error: ' + err.message);
     process.exit(1);
   }
 }

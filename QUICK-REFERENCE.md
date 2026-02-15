@@ -6,14 +6,16 @@
 | ------- | ------- | ----------- |
 | `/poll-create` | Initialize a new poll | Start of workflow — create poll folder and files |
 | `/poll-preview` | Preview merged email for one participant | Before drafting — verify formatting & time zones |
-| `/poll-draft-emails` | Generate invitation emails for all participants | Ready to send invitations |
+| `/poll-draft-emails [--verbose]` | Generate invitation emails for all participants | Ready to send invitations |
 | `/poll-gmail-setup` | One-time Gmail OAuth2 authentication | Once per system — enable Gmail integration (optional) |
-| `/poll-send-emails` | Send draft emails automatically via Gmail | [Optional] If Gmail integration enabled |
-| `/poll-process-responses` | Read response files and tally votes | Responses arrive from participants |
-| `/poll-fetch-responses` | Fetch responses from Gmail automatically | [Optional] If Gmail integration enabled |
-| `/poll-remind` | Draft reminder emails for non-respondents | Approaching deadline, some haven't responded |
+| `/poll-send-emails [--verbose] [--dry-run] [--type poll\|reminder\|results]` | Send draft emails automatically via Gmail | [Optional] If Gmail integration enabled |
+| `/poll-process-responses [--verbose]` | Read response files and tally votes | Responses arrive from participants |
+| `/poll-fetch-responses [--verbose] [--all] [--keep-unread]` | Fetch responses from Gmail automatically | [Optional] If Gmail integration enabled |
+| `/poll-remind [--verbose]` | Draft reminder emails for non-respondents | Approaching deadline, some haven't responded |
 | `/poll-status` | View current poll status (read-only) | Anytime — check progress without editing |
-| `/poll-wrap-up` | Finalize poll and draft result emails | After deadline — communicate winner |
+| `/poll-wrap-up [--verbose]` | Finalize poll and draft result emails | After deadline — communicate winner |
+
+**Note**: Quiet mode by default. Add `--verbose` to batch operation commands for progress details and next steps guidance.
 
 ---
 

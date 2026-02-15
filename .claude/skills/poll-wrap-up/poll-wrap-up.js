@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const logger = require('../poll-shared/logger');
 const { parsePollFile, updateParticipantRow, updateCurrentState } = require('../poll-shared/poll-parser');
 const { mergeTemplate, extractSubjectAndBody } = require('../poll-shared/template-engine');
 
@@ -58,8 +59,8 @@ async function main() {
     const selectedDateTime = pollData.choices[selectedChoice - 1];
     const formattedDate = getFormattedDate();
 
-    console.log(`\nWrapping up poll with selected choice: ${selectedChoice} (${selectedDateTime})\n`);
-    console.log('Creating results drafts for all participants...\n');
+    logger.info(`\nWrapping up poll with selected choice: ${selectedChoice} (${selectedDateTime})\n`);
+    logger.info('Creating results drafts for all participants...\n');
 
     let respondentCount = 0;
     let nonRespondentCount = 0;
@@ -94,7 +95,7 @@ async function main() {
       });
 
       const type = isRespondent ? 'respondent' : 'non-respondent';
-      console.log(`  ✓ ${draftFile} - created (${type} template)`);
+      logger.debug(`${draftFile} - created (${type} template)`);
 
       if (isRespondent) {
         respondentCount++;
@@ -107,20 +108,23 @@ async function main() {
       responsesReceived: `Poll completed on ${formattedDate}`
     });
 
-    console.log(`\nUpdated Poll.md:`);
-    console.log(`  - Marked all ${pollData.participants.length} participants as results communicated`);
-    console.log(`  - Poll status: Completed\n`);
-    console.log(`Summary: ${respondentCount + nonRespondentCount} results drafts created`);
-    console.log(`  (${respondentCount} respondent${respondentCount !== 1 ? 's' : ''}, ${nonRespondentCount} non-respondent${nonRespondentCount !== 1 ? 's' : ''})`);
-    console.log('Next: Review drafts, then run /poll-send-emails --type results to send\n');
+    logger.info(`\nUpdated Poll.md:`);
+    logger.info(`  - Marked all ${pollData.participants.length} participants as results communicated`);
+    logger.info(`  - Poll status: Completed\n`);
+    if (logger.isVerbose()) {
+      logger.info(`Summary: ${respondentCount + nonRespondentCount} results drafts created`);
+      logger.info(`  (${respondentCount} respondent${respondentCount !== 1 ? 's' : ''}, ${nonRespondentCount} non-respondent${nonRespondentCount !== 1 ? 's' : ''})`);
+      logger.info('Next: Review drafts, then run /poll-send-emails --type results to send\n');
+    }
+    logger.summary(`${respondentCount + nonRespondentCount} results drafts created`);
 
   } catch (error) {
-    console.error(`Error: ${error.message}`);
+    logger.error(`Error: ${error.message}`);
     process.exit(1);
   }
 }
 
 main().catch(error => {
-  console.error(`Fatal: ${error.message}`);
+  logger.error(`Fatal: ${error.message}`);
   process.exit(1);
 });

@@ -11,22 +11,25 @@ Finalizes the poll with a selected winning choice and generates results email dr
 ## Usage
 
 ```
-/poll-wrap-up <selected-choice>
+/poll-wrap-up <selected-choice>                # Quiet mode (default)
+/poll-wrap-up <selected-choice> --verbose      # Verbose mode with details
 ```
 
 ### Arguments
 
 - `<selected-choice>` (required) — Choice number (1, 2, 3, etc.) that won the poll
 
-## Example
+### Quiet Mode (Default)
+
+By default, output is minimal - just the final result:
 
 ```
-/poll-wrap-up 1
+3 results drafts created (2 respondents, 1 non-respondent)
 ```
 
-Generates results emails with Choice 1 as the selected date/time.
+### Verbose Mode
 
-## Output Example
+For detailed progress information, use the `--verbose` flag:
 
 ```
 Wrapping up poll with selected choice: 1 (Feb 16, 2026, 13:00)
@@ -34,11 +37,11 @@ Wrapping up poll with selected choice: 1 (Feb 16, 2026, 13:00)
 Creating results drafts for all participants...
 
 Respondents (2):
-  ✓ draft-results-alice@example.com.txt - created (respondent template)
-  ✓ draft-results-charlie@example.com.txt - created (respondent template)
+  draft-results-alice@example.com.txt - created (respondent template)
+  draft-results-charlie@example.com.txt - created (respondent template)
 
 Non-Respondents (1):
-  ✓ draft-results-bob@example.com.txt - created (non-respondent template)
+  draft-results-bob@example.com.txt - created (non-respondent template)
 
 Updated Poll.md:
   - Marked all 3 participants as results communicated on Feb 14, 2026, 10:30

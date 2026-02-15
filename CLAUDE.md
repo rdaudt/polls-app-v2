@@ -96,6 +96,13 @@ All skills should consult these shared reference files:
 - `.claude/skills/poll-shared/tz-conversion.md` — TZ conversion rules and offset table
 - `.claude/skills/poll-shared/poll-file-format.md` — canonical Poll.md format
 - `.claude/skills/poll-shared/template-merge.md` — merge field reference and expansion rules
+- `.claude/skills/poll-shared/logger.js` — Centralized logging with quiet-by-default behavior
+  - Singleton pattern parses `--verbose` flag from CLI arguments
+  - Exports methods: `info()`, `debug()`, `warn()`, `error()`, `success()`, `summary()`
+  - All batch operation skills use this module for consistent output
+  - Quiet mode: shows only critical errors and final one-line summary
+  - Verbose mode: shows progress details, per-item status, and next-steps guidance
+  - No emoji in output, suitable for automation and non-technical users
 
 ## Gmail Integration (Optional)
 

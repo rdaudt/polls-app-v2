@@ -11,48 +11,27 @@ Send draft emails from the poll outbox via Gmail API.
 ## Usage
 
 ```
-/poll-send-emails [--dry-run] [--type TYPE]
+/poll-send-emails [--dry-run] [--type TYPE]              # Quiet mode (default)
+/poll-send-emails [--dry-run] [--type TYPE] --verbose    # Verbose mode with details
 ```
 
-## Arguments
+### Arguments
 
 - `--dry-run` (optional) - Show what would be sent without actually sending
 - `--type` (optional) - Only send specific draft type: `poll`, `reminder`, or `results`. If omitted, sends all drafts.
+- `--verbose` (optional) - Show detailed progress information
 
-## Description
+### Quiet Mode (Default)
 
-This skill reads draft email files from the active poll's `outbox/` folder and sends them via Gmail API. Each draft file follows the format:
+By default, output is minimal - just the final result:
 
 ```
-To: participant@example.com
-Subject: Your poll invitation
-
-Here is your poll content...
+2 emails sent, 0 failed
 ```
 
-### Workflow
+### Verbose Mode
 
-1. Read `polls-config.json` to get the active poll folder
-2. Scan all `draft-*.txt` files in `<pollsRoot>/<activePoll>/outbox/`
-3. Parse each draft file:
-   - Extract recipient email from `To:` line
-   - Extract subject from `Subject:` line
-   - Extract body (everything after blank line)
-4. Send via Gmail API using `send_email` tool
-5. On success: move draft to `outbox/sent/<filename>`
-6. On failure: log error and continue with next draft
-7. Report summary: X sent, Y failed
-
-### Flags
-
-- **--dry-run** - Parse and display what would be sent without actually sending. Useful for verification before bulk sending.
-- **--type** - Filter drafts by type:
-  - `poll` - Only send `draft-poll-*.txt` files
-  - `reminder` - Only send `draft-reminder-*.txt` files
-  - `results` - Only send `draft-results-*.txt` files
-  - Omit to send all types
-
-## Output
+For detailed progress information, use the `--verbose` flag:
 
 ```
 Sending poll emails...
@@ -63,14 +42,14 @@ Parsed drafts:
 
 Sending... (2 total)
 
-✓ alice@example.com - sent
-✓ bob@example.com - sent
+alice@example.com - sent
+bob@example.com - sent
 
 Summary: 2 sent, 0 failed
 Moved 2 drafts to outbox/sent/
 ```
 
-## Dry-Run Example
+### Dry-Run Example
 
 ```
 Sending poll emails (dry-run mode)...

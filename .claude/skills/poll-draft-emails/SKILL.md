@@ -16,12 +16,23 @@ This skill:
 ## Usage
 
 ```
-/poll-draft-emails
+/poll-draft-emails              # Quiet mode (default)
+/poll-draft-emails --verbose    # Verbose mode with details
 ```
 
-No arguments or options.
+### Quiet Mode (Default)
 
-## Output Example
+By default, output is minimal - just the final result:
+
+```
+2 invitation drafts created
+```
+
+This is ideal for non-technical users or when integrating into scripts.
+
+### Verbose Mode
+
+For detailed progress information, use the `--verbose` flag:
 
 ```
 Creating poll invitation drafts...
@@ -31,8 +42,8 @@ Found 2 unpolled participants:
   - bob@example.com (Bob Smith)
 
 Merging templates and creating drafts...
-  ✓ draft-poll-alice@example.com.txt - created
-  ✓ draft-poll-bob@example.com.txt - created
+  draft-poll-alice@example.com.txt - created
+  draft-poll-bob@example.com.txt - created
 
 Updated Poll.md: Marked 2 participants as polled on Feb 14, 2026
 

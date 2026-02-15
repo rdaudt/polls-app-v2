@@ -1,12 +1,13 @@
 /**
  * Poll Draft Emails Skill
- * 
+ *
  * Generates invitation draft emails for participants who haven't been polled yet.
  * Creates draft-poll-*.txt files in the outbox folder.
  */
 
 const fs = require('fs');
 const path = require('path');
+const logger = require('../poll-shared/logger');
 const { parsePollFile, updateParticipantRow } = require('../poll-shared/poll-parser');
 const { mergeTemplate, extractSubjectAndBody } = require('../poll-shared/template-engine');
 
@@ -60,14 +61,14 @@ async function main() {
     const unpolledParticipants = pollData.participants.filter(p => !p.polledOn || !p.polledOn.trim());
 
     if (unpolledParticipants.length === 0) {
-      console.log('\nNo unpolled participants. All have been invited.');
+      logger.warn('No unpolled participants. All have been invited.');
       return;
     }
 
-    console.log(`\nCreating poll invitation drafts...\n`);
-    console.log(`Found ${unpolledParticipants.length} unpolled participant${unpolledParticipants.length !== 1 ? 's' : ''}:`);
+    logger.info(`\nCreating poll invitation drafts...\n`);
+    logger.info(`Found ${unpolledParticipants.length} unpolled participant${unpolledParticipants.length !== 1 ? 's' : ''}:`);
     unpolledParticipants.forEach(p => {
-      console.log(`  - ${p.email} (${p.name})`);
+      logger.debug(`  - ${p.email} (${p.name})`);
     });
 
     // Read template
@@ -79,7 +80,7 @@ async function main() {
     const templateContent = fs.readFileSync(templatePath, 'utf-8');
     const formattedDate = getFormattedDate();
 
-    console.log('\nMerging templates and creating drafts...');
+    logger.info('\nMerging templates and creating drafts...');
 
     // Generate drafts for each unpolled participant
     for (const participant of unpolledParticipants) {
@@ -99,7 +100,7 @@ async function main() {
         const draftContent = `To: ${participant.email}\nSubject: ${subject}\n\n${body}`;
         fs.writeFileSync(draftPath, draftContent, 'utf-8');
 
-        console.log(`  ✓ ${draftFilename} - created`);
+        logger.debug(`${draftFilename} - created`);
 
         // Update participant row in Poll.md
         updateParticipantRow(pollFilePath, participant.email, {
@@ -107,21 +108,24 @@ async function main() {
         });
 
       } catch (error) {
-        console.error(`  ✗ Failed for ${participant.email}: ${error.message}`);
+        logger.error(`Failed for ${participant.email}: ${error.message}`);
       }
     }
 
-    console.log(`\nUpdated Poll.md: Marked ${unpolledParticipants.length} participant${unpolledParticipants.length !== 1 ? 's' : ''} as polled on ${formattedDate}`);
-    console.log(`\nSummary: ${unpolledParticipants.length} invitation draft${unpolledParticipants.length !== 1 ? 's' : ''} created in outbox/`);
-    console.log('Next: Review drafts, then run /poll-send-emails to send via Gmail\n');
+    logger.info(`\nUpdated Poll.md: Marked ${unpolledParticipants.length} participant${unpolledParticipants.length !== 1 ? 's' : ''} as polled on ${formattedDate}`);
+    if (logger.isVerbose()) {
+      logger.info(`Summary: ${unpolledParticipants.length} invitation draft${unpolledParticipants.length !== 1 ? 's' : ''} created in outbox/`);
+      logger.info('Next: Review drafts, then run /poll-send-emails to send via Gmail\n');
+    }
+    logger.summary(`${unpolledParticipants.length} invitation draft${unpolledParticipants.length !== 1 ? 's' : ''} created`);
 
   } catch (error) {
-    console.error(`Error: ${error.message}`);
+    logger.error(`Error: ${error.message}`);
     process.exit(1);
   }
 }
 
 main().catch(error => {
-  console.error(`Fatal error: ${error.message}`);
+  logger.error(`Fatal error: ${error.message}`);
   process.exit(1);
 });

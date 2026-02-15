@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const logger = require('../poll-shared/logger');
 const { parsePollFile, updateParticipantRow, addResponse, updateCurrentState } = require('../poll-shared/poll-parser');
 const { convertDateTime } = require('../poll-shared/tz-converter');
 const { tallyVotes } = require('../poll-shared/vote-tally');
@@ -93,13 +94,13 @@ async function main() {
     const responseFiles = files.filter(f => f.endsWith('.txt') && !f.startsWith('processed'));
 
     if (responseFiles.length === 0) {
-      console.log('\nNo response files found in inbox.\n');
+      logger.summary('No response files found in inbox.');
       return;
     }
 
-    console.log(`\nProcessing poll responses...\n`);
-    console.log(`Found ${responseFiles.length} response file${responseFiles.length !== 1 ? 's' : ''} in inbox/\n`);
-    console.log('Processing:');
+    logger.info('Processing poll responses...');
+    logger.debug('Found ' + responseFiles.length + ' response file' + (responseFiles.length !== 1 ? 's' : '') + ' in inbox/');
+    logger.info('Processing:');
 
     let successCount = 0;
     let skipCount = 0;
@@ -112,7 +113,7 @@ async function main() {
         const validation = validateResponseFile(response);
 
         if (!validation.valid) {
-          console.log(`  ✗ ${filename} - Skipped: ${validation.error}`);
+          logger.warn('  ' + filename + ' - Skipped: ' + validation.error);
           skipCount++;
           continue;
         }
@@ -122,7 +123,7 @@ async function main() {
         );
 
         if (!participant) {
-          console.log(`  ✗ ${filename} - Skipped: ${response.from} not in participants`);
+          logger.warn('  ' + filename + ' - Skipped: ' + response.from + ' not in participants');
           skipCount++;
           continue;
         }
@@ -136,7 +137,7 @@ async function main() {
 
         for (const choice of response.choices) {
           if (choice.choiceNumber < 1 || choice.choiceNumber > pollData.choices.length) {
-            console.log(`  ⚠ ${filename} - Warning: Invalid choice ${choice.choiceNumber}`);
+            logger.warn('  ' + filename + ' - Warning: Invalid choice ' + choice.choiceNumber);
             continue;
           }
 
@@ -154,14 +155,14 @@ async function main() {
           respondedOn: convertedDate
         });
 
-        console.log(`  ✓ ${filename} - ${validChoicesCount} choice${validChoicesCount !== 1 ? 's' : ''} recorded`);
+        logger.success('  ' + filename + ' - ' + validChoicesCount + ' choice' + (validChoicesCount !== 1 ? 's' : '') + ' recorded');
         successCount++;
 
         const newPath = path.join(processedFolder, filename);
         fs.renameSync(filePath, newPath);
 
       } catch (error) {
-        console.log(`  ✗ ${filename} - Error: ${error.message}`);
+        logger.warn('  ' + filename + ' - Error: ' + error.message);
         skipCount++;
       }
     }
@@ -175,27 +176,29 @@ async function main() {
       frontrunner: tally.frontrunner ? tally.frontrunner.choiceNumber : null
     });
 
-    console.log(`\nUpdated Poll.md:`);
-    console.log(`  - Recorded ${successCount} response${successCount !== 1 ? 's' : ''}`);
-    console.log(`  - Marked ${respondents.length} participant${respondents.length !== 1 ? 's' : ''} as responded`);
-    console.log(`  - Updated vote tally`);
+    logger.info('Updated Poll.md:');
+    logger.info('  - Recorded ' + successCount + ' response' + (successCount !== 1 ? 's' : ''));
+    logger.info('  - Marked ' + respondents.length + ' participant' + (respondents.length !== 1 ? 's' : '') + ' as responded');
+    logger.info('  - Updated vote tally');
 
     if (tally.frontrunner) {
       const choice = updatedPollData.choices[tally.frontrunner.choiceNumber - 1];
-      console.log(`  - Current frontrunner: Choice ${tally.frontrunner.choiceNumber} (${choice})`);
+      logger.info('  - Current frontrunner: Choice ' + tally.frontrunner.choiceNumber + ' (' + choice + ')');
     }
 
-    console.log(`\nMoved ${successCount} response file${successCount !== 1 ? 's' : ''} to inbox/processed/\n`);
-    console.log(`Summary: ${successCount} response${successCount !== 1 ? 's' : ''} processed, ${skipCount} skipped`);
-    console.log('Next: Run /poll-status to see updated tally\n');
+    logger.info('Moved ' + successCount + ' response file' + (successCount !== 1 ? 's' : '') + ' to inbox/processed/');
+    if (logger.isVerbose()) {
+      logger.info('Next: Run /poll-status to see updated tally');
+    }
+    logger.summary('Processed ' + successCount + ' response' + (successCount !== 1 ? 's' : '') + ', ' + skipCount + ' skipped');
 
   } catch (error) {
-    console.error(`Error: ${error.message}`);
+    logger.error('Error: ' + error.message);
     process.exit(1);
   }
 }
 
 main().catch(error => {
-  console.error(`Fatal error: ${error.message}`);
+  logger.error('Fatal error: ' + error.message);
   process.exit(1);
 });

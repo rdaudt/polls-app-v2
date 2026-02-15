@@ -16,12 +16,21 @@ This skill:
 ## Usage
 
 ```
-/poll-remind
+/poll-remind              # Quiet mode (default)
+/poll-remind --verbose    # Verbose mode with details
 ```
 
-No arguments or options.
+### Quiet Mode (Default)
 
-## Output Example
+By default, output is minimal - just the final result:
+
+```
+1 reminder draft created
+```
+
+### Verbose Mode
+
+For detailed progress information, use the `--verbose` flag:
 
 ```
 Creating reminder drafts...
@@ -30,7 +39,7 @@ Found 1 non-respondent:
   - bob@example.com (Bob Smith) - polled on Feb 10, 2026, no response yet
 
 Merging templates and creating drafts...
-  ✓ draft-reminder-bob@example.com.txt - created
+  draft-reminder-bob@example.com.txt - created
 
 Updated Poll.md: Marked 1 participant as reminded on Feb 14, 2026
 

@@ -7,12 +7,13 @@
 3. [Gmail Integration (Optional)](#gmail-integration-optional)
 4. [Quick Start](#quick-start)
 5. [Complete Workflow Reference](#complete-workflow-reference)
-6. [File Formats Reference](#file-formats-reference)
-7. [Time Zone Handling](#time-zone-handling)
-8. [Configuration](#configuration)
-9. [Tips and Best Practices](#tips-and-best-practices)
-10. [Troubleshooting](#troubleshooting)
-11. [Appendices](#appendices)
+6. [Quiet vs Verbose Output](#quiet-vs-verbose-output)
+7. [File Formats Reference](#file-formats-reference)
+8. [Time Zone Handling](#time-zone-handling)
+9. [Configuration](#configuration)
+10. [Tips and Best Practices](#tips-and-best-practices)
+11. [Troubleshooting](#troubleshooting)
+12. [Appendices](#appendices)
 
 ---
 
@@ -855,6 +856,40 @@ outbox/draft-results-carol@company.com.txt
 Send these manually to communicate the final decision.
 
 > **Tip**: After running wrap-up, you can delete the contents of the `outbox/` folder (you no longer need the old drafts). The `inbox/processed/` folder keeps all responses for your records.
+
+---
+
+## Quiet vs Verbose Output
+
+By default, all batch operation skills display minimal output for a clean, professional user experience. This "quiet mode" shows only the final result, making the app suitable for non-technical users and automation.
+
+**Default behavior (quiet mode):**
+All batch operation commands show only a single-line summary:
+- `/poll-draft-emails` → `3 invitation drafts created`
+- `/poll-remind` → `2 reminder drafts created`
+- `/poll-wrap-up 1` → `3 results drafts created`
+- `/poll-send-emails` → `2 emails sent, 0 failed`
+- `/poll-fetch-responses` → `Fetched 2 response(s)`
+- `/poll-process-responses` → `Processed 2 response(s), 0 skipped`
+
+Errors are ALWAYS shown regardless of quiet/verbose mode.
+
+**Detailed output (verbose mode):**
+Add `--verbose` flag to see full progress details, intermediate steps, and "Next steps" guidance:
+```
+/poll-draft-emails --verbose
+/poll-send-emails --verbose
+/poll-fetch-responses --verbose
+/poll-process-responses --verbose
+```
+
+Verbose mode is useful for:
+- Understanding what the command is doing
+- Debugging issues or unusual situations
+- Learning the system
+- When you want progress feedback
+
+See individual command documentation for examples of both modes.
 
 ---
 

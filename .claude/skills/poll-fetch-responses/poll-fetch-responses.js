@@ -7,6 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const logger = require('../poll-shared/logger');
 const gmailAuth = require('../poll-shared/gmail-auth');
 const gmailHelpers = require('../poll-shared/gmail-helpers');
 
@@ -33,7 +34,7 @@ function parseParticipants(pollMdPath) {
 
     return participants;
   } catch (err) {
-    console.error('Error parsing participants:', err.message);
+    logger.error('Error parsing participants: ' + err.message);
     return new Set();
   }
 }
@@ -62,27 +63,27 @@ async function main() {
       const configPath = path.join(process.cwd(), 'polls-config.json');
       config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     } catch (err) {
-      console.error('✗ Error loading polls-config.json:', err.message);
+      logger.error('Error loading polls-config.json: ' + err.message);
       process.exit(1);
     }
 
     // Validate config
     if (!config.pollsEmailSubjectPrefix) {
-      console.error('✗ pollsEmailSubjectPrefix not set in polls-config.json');
+      logger.error('pollsEmailSubjectPrefix not set in polls-config.json');
       process.exit(1);
     }
 
     // Check Gmail authentication
     if (!gmailAuth.isAuthenticated()) {
-      console.error('\n✗ Gmail not configured');
-      console.error('Run: /poll-gmail-setup');
+      logger.error('Gmail not configured');
+      logger.error('Run: /poll-gmail-setup');
       process.exit(1);
     }
 
     const authClient = await gmailAuth.getAuthClient();
     if (!authClient) {
-      console.error('\n✗ Gmail authentication failed');
-      console.error('Run: /poll-gmail-setup');
+      logger.error('Gmail authentication failed');
+      logger.error('Run: /poll-gmail-setup');
       process.exit(1);
     }
 
@@ -91,7 +92,7 @@ async function main() {
     const pollMdPath = path.join(pollFolder, 'Poll.md');
     const inboxFolder = config.inboxFolder;
 
-    console.log('\n📧 Fetching poll responses from Gmail...\n');
+    logger.info('Fetching poll responses from Gmail...');
 
     // Create inbox folder if it doesn't exist
     if (!fs.existsSync(inboxFolder)) {
@@ -101,17 +102,17 @@ async function main() {
     // Parse participants from Poll.md
     const participants = parseParticipants(pollMdPath);
     if (participants.size === 0) {
-      console.warn('⚠ No participants found in Poll.md');
+      logger.warn('No participants found in Poll.md');
     } else {
-      console.log(`Found ${participants.size} participant(s)`);
+      logger.debug('Found ' + participants.size + ' participant(s)');
     }
 
     // Build search query
     const query = fetchAll
-      ? `subject:"${config.pollsEmailSubjectPrefix}"`
-      : `is:unread subject:"${config.pollsEmailSubjectPrefix}"`;
+      ? 'subject:"' + config.pollsEmailSubjectPrefix + '"'
+      : 'is:unread subject:"' + config.pollsEmailSubjectPrefix + '"';
 
-    console.log(`\nSearching for: ${query}`);
+    logger.debug('Searching for: ' + query);
 
     // Search for matching emails
     let messages;
@@ -123,14 +124,14 @@ async function main() {
       });
       messages = res.data.messages || [];
     } catch (err) {
-      console.error('✗ Gmail search failed:', err.message);
+      logger.error('Gmail search failed: ' + err.message);
       process.exit(1);
     }
 
-    console.log(`Found ${messages.length} message(s)\n`);
+    logger.info('Found ' + messages.length + ' message(s)');
 
     if (messages.length === 0) {
-      console.log('No matching responses found.');
+      logger.summary('No matching responses found.');
       process.exit(0);
     }
 
@@ -139,7 +140,7 @@ async function main() {
     let skipped = 0;
     let errors = 0;
 
-    console.log('Processing responses:');
+    logger.info('Processing responses:');
 
     // Create label if configured
     let labelId = null;
@@ -169,14 +170,14 @@ async function main() {
         const senderEmail = emailMatch ? emailMatch[0].toLowerCase() : '';
 
         if (!senderEmail) {
-          console.error(`  ✗ ${from} - skipped (invalid email)`);
+          logger.warn('  ' + from + ' - skipped (invalid email)');
           skipped++;
           continue;
         }
 
         // Validate sender is a participant
         if (!participants.has(senderEmail)) {
-          console.error(`  ✗ ${senderEmail} - skipped (not in participants list)`);
+          logger.warn('  ' + senderEmail + ' - skipped (not in participants list)');
           skipped++;
           continue;
         }
@@ -184,7 +185,7 @@ async function main() {
         // Parse email body
         const bodyText = gmailHelpers.parseEmailBody(msg);
         if (!bodyText) {
-          console.error(`  ✗ ${senderEmail} - skipped (no body text)`);
+          logger.warn('  ' + senderEmail + ' - skipped (no body text)');
           skipped++;
           continue;
         }
@@ -192,7 +193,7 @@ async function main() {
         // Extract responses
         const responses = gmailHelpers.extractResponses(bodyText);
         if (responses.length === 0) {
-          console.error(`  ✗ ${senderEmail} - skipped (no valid responses found)`);
+          logger.warn('  ' + senderEmail + ' - skipped (no valid responses found)');
           skipped++;
           continue;
         }
@@ -214,7 +215,7 @@ async function main() {
         // Save response file
         fs.writeFileSync(filePath, responseContent, 'utf8');
 
-        console.log(`  ✓ ${senderEmail} - saved as ${filename}`);
+        logger.success('  ' + senderEmail + ' - saved as ' + filename);
 
         // Mark as read unless --keep-unread
         if (!keepUnread) {
@@ -227,7 +228,7 @@ async function main() {
               }
             });
           } catch (err) {
-            console.warn(`    ⚠ Could not mark as read:`, err.message);
+            logger.warn('    Could not mark as read: ' + err.message);
           }
         }
 
@@ -242,30 +243,33 @@ async function main() {
               }
             });
           } catch (err) {
-            console.warn(`    ⚠ Could not apply label:`, err.message);
+            logger.warn('    Could not apply label: ' + err.message);
           }
         }
 
         fetched++;
       } catch (err) {
-        console.error(`  ✗ Error processing message ${message.id}:`, err.message);
+        logger.error('  Error processing message ' + message.id + ': ' + err.message);
         errors++;
       }
     }
 
-    console.log(`\nSummary: ${fetched} responses fetched, ${skipped} skipped`);
+    logger.info('Summary: ' + fetched + ' responses fetched, ' + skipped + ' skipped');
     if (errors > 0) {
-      console.log(`${errors} errors encountered`);
+      logger.info(errors + ' errors encountered');
     }
 
-    console.log(`\nResponse files ready in: ${inboxFolder}`);
-    if (fetched > 0) {
-      console.log('Next: run /poll-process-responses to update Poll.md\n');
+    if (logger.isVerbose()) {
+      logger.info('Response files ready in: ' + inboxFolder);
+      if (fetched > 0) {
+        logger.info('Next: run /poll-process-responses to update Poll.md');
+      }
     }
+    logger.summary('Fetched ' + fetched + ' response(s)');
 
     process.exit(errors > 0 ? 1 : 0);
   } catch (err) {
-    console.error('✗ Error:', err.message);
+    logger.error('Error: ' + err.message);
     process.exit(1);
   }
 }
