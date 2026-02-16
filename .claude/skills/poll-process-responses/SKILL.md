@@ -71,6 +71,8 @@ Subject: Re: You're invited: Event Title
 
 Each line after the blank line contains: `<choice_number>: <Yes|As Needed>`
 
+Response files may also be created by `/poll-fetch-responses` using either regex or NLP parsing. Regardless of how the response file was created, the format above is always used. The parsing method (regex or NLP) does not affect processing.
+
 ## How It Works
 
 ### Step 1: Scan Inbox
@@ -84,6 +86,8 @@ Each file should contain:
 - **Date:** When response was sent
 - **Subject:** Email subject (for reference)
 - **Choices:** One per line, `<number>: <Yes|As Needed>`
+
+Note: Response files always use the direct numbered format (`N: Yes`/`N: As Needed`) regardless of how the original email was formatted. When `/poll-fetch-responses` creates response files, it normalizes checkbox-style replies, NLP-parsed natural language, and other formats into this standard format.
 
 ### Step 3: Validate & Extract
 - Check sender is in participants list

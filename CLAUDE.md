@@ -96,6 +96,12 @@ All skills should consult these shared reference files:
 - `.claude/skills/poll-shared/tz-conversion.md` — TZ conversion rules and offset table
 - `.claude/skills/poll-shared/poll-file-format.md` — canonical Poll.md format
 - `.claude/skills/poll-shared/template-merge.md` — merge field reference and expansion rules
+- `.claude/skills/poll-shared/nlp-response-parser.js` — NLP fallback for natural language poll responses
+  - Tries regex first (via `gmail-helpers.extractResponses`), then Claude Haiku API if regex finds nothing
+  - Requires `ANTHROPIC_API_KEY` environment variable; gracefully degrades without it
+  - Exports `extractResponsesWithNLP(bodyText, pollChoices)` returning `{ responses, method }`
+  - Also exports `parseNLPResponse()` and `buildUserMessage()` for testing
+  - Model: `claude-haiku-4-5-20251001`, cost ~$0.0002 per call, 15s timeout
 - `.claude/skills/poll-shared/logger.js` — Centralized logging with quiet-by-default behavior
   - Singleton pattern parses `--verbose` flag from CLI arguments
   - Exports methods: `info()`, `debug()`, `warn()`, `error()`, `success()`, `summary()`
@@ -153,6 +159,9 @@ Three skills handle Gmail workflow:
   - Saves responses as text files to inbox folder
   - Validates senders against participants list
   - Marks emails as read and applies labels
+  - Automatic date filter: only fetches emails after earliest "Polled on" date
+  - Per-participant dedup: when multiple responses exist, only the newest is saved (all are marked read/labeled)
+  - NLP fallback: if regex parsing fails and `ANTHROPIC_API_KEY` is set, uses Claude Haiku to interpret natural language replies
 
 ### Security
 

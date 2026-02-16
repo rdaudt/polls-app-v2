@@ -107,6 +107,22 @@ Set the `ANTHROPIC_API_KEY` environment variable. No additional npm packages are
 
 Each NLP call uses Claude Haiku (~$0.0002 per response). Only triggered when regex parsing fails, so well-formatted numbered responses have zero added cost or latency.
 
+## Automatic Date Filtering
+
+When fetching from Gmail, the search query automatically includes an `after:` date filter based on the earliest "Polled on" date found in Poll.md. This ensures only emails received after invitations were sent are considered, avoiding false matches from older conversations.
+
+- The filter is derived from participant "Polled on" dates in Poll.md
+- If no "Polled on" dates exist yet, no date filter is applied
+- Visible in verbose output as `Date filter: after:YYYY/MM/DD`
+
+## Per-Participant Deduplication
+
+When a participant sends multiple responses, only the newest email (by Date header) is saved as a response file. This matches the project rule that "only the latest response per participant counts."
+
+- All messages from the same sender are still marked as read and labeled
+- Older duplicates are skipped with a debug message in verbose mode
+- The summary line shows dedup count: `N older duplicate(s) skipped`
+
 ## Validation Rules
 
 - **Sender email** - Must match a participant in Poll.md

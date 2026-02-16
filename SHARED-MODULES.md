@@ -12,6 +12,7 @@ This document describes the shared utility modules used by all Polls App skills.
 | `vote-tally.js` | `.claude/skills/poll-shared/` | Vote tallying and frontrunner calculation |
 | `gmail-auth.js` | `.claude/skills/poll-shared/` | OAuth2 token management (Gmail only) |
 | `gmail-helpers.js` | `.claude/skills/poll-shared/` | Email encoding, parsing, label management (Gmail only) |
+| `nlp-response-parser.js` | `.claude/skills/poll-shared/` | NLP fallback for natural language poll responses |
 
 ---
 
@@ -485,6 +486,29 @@ const plainText = htmlToPlainText('<p>Hello <b>World</b></p>');
 // Returns: "Hello World"
 ```
 
+#### `extractResponses(bodyText)`
+
+Extracts numbered poll responses from email body text using a three-tier regex cascade.
+
+**Parameters:**
+- `bodyText` (string) — Email body text (plain text)
+
+**Returns:** (Array) `[{ number: 1, choice: 'Yes' }, { number: 2, choice: 'As Needed' }, ...]`
+
+**Pattern cascade (tried in order, first match wins):**
+
+1. **Direct format** — `N: Yes`, `N. As Needed`, `N) Yes`, `N - Yes`
+2. **Filled-checkbox format** — Two checkbox groups per line:
+   `1. Mar 16, 2026, 10:00 PST: (X) **Yes**  ( ) **As Needed**`
+   Detects any non-whitespace mark inside parentheses. Handles optional markdown bold around Yes/As Needed. If both marked, prefers Yes.
+3. **Natural language** — Extracts choice numbers from free-text replies (e.g., "option 1 and 3 work, 2 if needed"). Strips quoted reply text before parsing.
+
+**Example:**
+```javascript
+const responses = extractResponses('1: Yes\n2: As Needed\n3: Yes');
+// Returns: [{ number: 1, choice: 'Yes' }, { number: 2, choice: 'As Needed' }, { number: 3, choice: 'Yes' }]
+```
+
 #### `getOrCreateLabel(gmailClient, labelName)`
 
 Gets or creates a Gmail label for organizing poll responses.
@@ -502,6 +526,75 @@ const labelId = await getOrCreateLabel(gmail, 'Polls/Responses');
 
 ---
 
+## nlp-response-parser.js
+
+NLP fallback for parsing natural language poll responses. Tries regex first (fast, free), then falls back to Claude Haiku API when regex returns nothing and `ANTHROPIC_API_KEY` is available.
+
+### API
+
+#### `extractResponsesWithNLP(bodyText, pollChoices)`
+
+Extract responses with NLP fallback.
+
+**Parameters:**
+- `bodyText` (string) — Email body text
+- `pollChoices` (string[]) — Array of choice strings from Poll.md (e.g., `["Feb 16, 2026, 13:00", "Feb 17, 2026, 10:00"]`)
+
+**Returns:** (Promise\<object\>) `{ responses: Array<{ number, choice }>, method: 'regex' | 'nlp' | 'none' }`
+
+**Flow:**
+1. Calls `gmail-helpers.extractResponses(bodyText)` (regex, three-tier cascade)
+2. If regex returns results, returns `{ responses, method: 'regex' }`
+3. If regex returns nothing and `ANTHROPIC_API_KEY` is set, calls Claude Haiku with the email body and poll choices
+4. Returns `{ responses, method: 'nlp' }` on success, or `{ responses: [], method: 'none' }` on failure
+
+**Example:**
+```javascript
+const { responses, method } = await extractResponsesWithNLP(bodyText, pollChoices);
+if (responses.length > 0) {
+  console.log(`Parsed ${responses.length} choices via ${method}`);
+}
+```
+
+#### `parseNLPResponse(rawText, maxChoice)`
+
+Parse and validate the JSON response from Claude API. Exported for testing.
+
+**Parameters:**
+- `rawText` (string) — Raw text from Claude API response
+- `maxChoice` (number) — Maximum valid choice number
+
+**Returns:** (Array) Validated `[{ number, choice }, ...]`
+
+#### `buildUserMessage(bodyText, pollChoices)`
+
+Build the user message for the Claude API call. Exported for testing.
+
+**Parameters:**
+- `bodyText` (string) — Email body text
+- `pollChoices` (string[]) — Array of choice strings
+
+**Returns:** (string) Formatted message with numbered choices and email body
+
+### Configuration
+
+- **Environment variable:** `ANTHROPIC_API_KEY` — required for NLP fallback; without it, NLP is silently skipped
+- **Model:** `claude-haiku-4-5-20251001`
+- **Cost:** ~$0.0002 per NLP call (only triggered when regex fails)
+- **Timeout:** 15 seconds
+- **No external dependencies** — uses Node 20+ native `fetch()`
+
+### NLP System Prompt
+
+The system prompt instructs Claude to:
+- Map natural language date/time references to numbered poll choices
+- Classify each as "Yes" (firm) or "As Needed" (conditional/maybe)
+- Handle patterns like "all work", "all except #2", ordinals, date references
+- Return only a JSON array: `[{"number": 1, "choice": "Yes"}, ...]`
+- Never fabricate choices not in the original list
+
+---
+
 ## Summary for Skill Developers
 
 When implementing a new skill, import the modules you need:
@@ -512,7 +605,8 @@ const { mergeTemplate, extractSubjectAndBody } = require('../poll-shared/templat
 const { convertDateTime } = require('../poll-shared/tz-converter.js');
 const { tallyVotes } = require('../poll-shared/vote-tally.js');
 const { isAuthenticated, createGmailClient } = require('../poll-shared/gmail-auth.js');
-const { encodeEmail, parseEmailBody } = require('../poll-shared/gmail-helpers.js');
+const { encodeEmail, parseEmailBody, extractResponses } = require('../poll-shared/gmail-helpers.js');
+const { extractResponsesWithNLP } = require('../poll-shared/nlp-response-parser.js');
 ```
 
 All modules are designed to be used independently and handle their own error cases. See individual skill implementations for usage examples.

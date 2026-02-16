@@ -15,7 +15,10 @@
 | `/poll-status` | View current poll status (read-only) | Anytime — check progress without editing |
 | `/poll-wrap-up [--verbose]` | Finalize poll and draft result emails | After deadline — communicate winner |
 
-**Note**: Quiet mode by default. Add `--verbose` to batch operation commands for progress details and next steps guidance.
+**Notes**:
+- Quiet mode by default. Add `--verbose` to batch operation commands for progress details and next steps guidance.
+- `/poll-fetch-responses` automatically filters by date (after invitations sent) and deduplicates per participant (newest response wins).
+- Set `ANTHROPIC_API_KEY` to enable NLP fallback for natural language responses (~$0.0002/call via Claude Haiku).
 
 ---
 
@@ -199,6 +202,8 @@ Subject: Re: You're invited to Team Meeting
 ```
 
 - Each line after blank line: `<choice number>: <Yes|As Needed>`
+- Also supports checkbox format: `1. Mar 16, 2026, 10:00 PST: (X) **Yes**  ( ) **As Needed**`
+- Natural language replies parsed via NLP if `ANTHROPIC_API_KEY` is set
 - Organizer processes with `/poll-process-responses`
 - Times converted back to organizer's TZ automatically
 

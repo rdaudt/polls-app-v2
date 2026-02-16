@@ -226,6 +226,25 @@ Responses are saved to your `inboxFolder` as text files. Then use:
 /poll-process-responses
 ```
 
+#### Smart Features
+
+**Automatic date filtering:** The fetch command automatically filters Gmail results to emails received after invitations were sent (based on the earliest "Polled on" date in Poll.md). This avoids picking up old, unrelated emails.
+
+**Per-participant deduplication:** If a participant sends multiple responses, only the newest one is saved as a response file. All messages are still marked as read and labeled, but older duplicates are not saved to avoid confusion during processing.
+
+**NLP fallback for natural language replies:** When a participant replies with natural language instead of the expected numbered format (e.g., "March 16 works for me, the 17th only if needed"), the system can use Claude Haiku to interpret their response.
+
+To enable NLP fallback, set the `ANTHROPIC_API_KEY` environment variable:
+```
+set ANTHROPIC_API_KEY=sk-ant-...
+```
+
+NLP details:
+- Only triggered when regex parsing fails (well-formatted responses have zero added cost)
+- Cost: ~$0.0002 per NLP call (Claude Haiku)
+- Responses parsed via NLP are tagged `[NLP]` in verbose output
+- Without the API key, the system silently falls back to the regex-only path (response skipped with a warning)
+
 ### Troubleshooting Gmail Setup
 
 **"OAuth client was not found" or "No such file or directory"**
@@ -292,7 +311,7 @@ All other commands (`/poll-status`, `/poll-wrap-up`, etc.) work unchanged.
 - Re-run authentication to restore access
 
 **Can I use the same login on multiple projects?**
-- Yes! Credentials are stored globally in `~/.gmail-mcp/`
+- Yes! Credentials are stored globally in `~/.gmail-credentials/`
 - All projects using same Gmail account share one credential
 - No per-project setup needed
 
