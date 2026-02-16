@@ -86,7 +86,10 @@ async function main() {
     for (const participant of unpolledParticipants) {
       try {
         // Merge template
-        const mergedTemplate = mergeTemplate(templateContent, pollData.description, participant, {
+        const mergedTemplate = mergeTemplate(templateContent, {
+          ...pollData.description,
+          choices: pollData.choices
+        }, participant, {
           nowDateTime: new Date().toISOString()
         });
 

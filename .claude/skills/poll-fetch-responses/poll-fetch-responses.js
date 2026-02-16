@@ -10,68 +10,8 @@ const path = require('path');
 const logger = require('../poll-shared/logger');
 const gmailAuth = require('../poll-shared/gmail-auth');
 const gmailHelpers = require('../poll-shared/gmail-helpers');
-
-/**
- * Parse Poll.md to get participants and event metadata
- */
-function parsePollMd(pollMdPath) {
-  try {
-    const content = fs.readFileSync(pollMdPath, 'utf8');
-    const participants = new Set();
-    let eventTitle = '';
-    let organizerEmail = '';
-    const polledOnDates = [];
-
-    // Extract event title
-    const eventMatch = content.match(/^Event name:\s*(.+)$/m);
-    if (eventMatch) {
-      eventTitle = eventMatch[1].trim();
-    }
-
-    // Extract organizer email (to exclude sent emails)
-    const orgEmailMatch = content.match(/^Organizer email:\s*(.+)$/m);
-    if (orgEmailMatch) {
-      organizerEmail = orgEmailMatch[1].trim().toLowerCase();
-    }
-
-    // Look for Participants section and extract emails + polled-on dates
-    const participantsMatch = content.match(/## Participants[\s\S]*?(?=##|$)/);
-    if (participantsMatch) {
-      const lines = participantsMatch[0].split('\n');
-      let polledOnCol = -1;
-
-      for (const line of lines) {
-        if (line.includes('----')) continue;
-
-        // Parse header row to find "Polled on" column index
-        if (polledOnCol < 0 && line.toLowerCase().includes('polled on')) {
-          const cols = line.split('|').map(c => c.trim());
-          polledOnCol = cols.findIndex(c => c.toLowerCase() === 'polled on');
-          continue;
-        }
-
-        const emailMatch = line.match(/[\w.-]+@[\w.-]+\.\w+/);
-        if (emailMatch) {
-          participants.add(emailMatch[0].toLowerCase());
-
-          // Extract polled-on date from the same row
-          if (polledOnCol >= 0) {
-            const cols = line.split('|').map(c => c.trim());
-            const polledOn = cols[polledOnCol];
-            if (polledOn) {
-              polledOnDates.push(polledOn);
-            }
-          }
-        }
-      }
-    }
-
-    return { participants, eventTitle, organizerEmail, polledOnDates };
-  } catch (err) {
-    logger.error('Error parsing Poll.md: ' + err.message);
-    return { participants: new Set(), eventTitle: '', organizerEmail: '', polledOnDates: [] };
-  }
-}
+const { parsePollFile } = require('../poll-shared/poll-parser');
+const { extractResponsesWithNLP } = require('../poll-shared/nlp-response-parser');
 
 /**
  * Format date string for response file
@@ -113,8 +53,6 @@ async function main() {
       process.exit(1);
     }
 
-    // pollsEmailSubjectPrefix is optional — search also uses event title
-
     // Check Gmail authentication
     if (!gmailAuth.isAuthenticated()) {
       logger.error('Gmail not configured');
@@ -141,19 +79,28 @@ async function main() {
       fs.mkdirSync(inboxFolder, { recursive: true });
     }
 
-    // Parse participants and event metadata from Poll.md
-    const { participants, eventTitle, organizerEmail, polledOnDates } = parsePollMd(pollMdPath);
+    // Parse Poll.md using shared parser
+    let pollData;
+    try {
+      pollData = parsePollFile(pollMdPath);
+    } catch (err) {
+      logger.error('Error parsing Poll.md: ' + err.message);
+      process.exit(1);
+    }
+
+    const participants = new Set(pollData.participants.map(p => p.email.toLowerCase()));
+    const eventTitle = pollData.description.eventTitle;
+    const organizerEmail = (pollData.description.organizerEmail || '').toLowerCase();
+    const polledOnDates = pollData.participants.map(p => p.polledOn).filter(Boolean);
+    const pollChoices = pollData.choices;
+
     if (participants.size === 0) {
       logger.warn('No participants found in Poll.md');
     } else {
       logger.debug('Found ' + participants.size + ' participant(s)');
     }
 
-    // Build smart search query using multiple signals:
-    // 1. from: participant emails (required — only emails from known participants)
-    // 2. subject: event title OR configured prefix OR "Date/Time Poll" (catches replies)
-    // 3. after: earliest polled-on date (scopes to current poll run)
-    // 4. is:unread filter (unless --all)
+    // Build smart search query using multiple signals
     const participantEmails = Array.from(participants);
     const fromClause = participantEmails.length > 0
       ? 'from:(' + participantEmails.join(' OR ') + ')'
@@ -168,7 +115,6 @@ async function main() {
     }
     subjectTerms.push('subject:"Date/Time Poll"');
 
-    // Gmail OR syntax: {term1 term2} means OR
     const subjectClause = subjectTerms.length > 1
       ? '{' + subjectTerms.join(' ') + '}'
       : subjectTerms[0] || '';
@@ -219,6 +165,7 @@ async function main() {
     let skipped = 0;
     let errors = 0;
     let dedupSkipped = 0;
+    let nlpCount = 0;
 
     logger.info('Processing responses:');
 
@@ -331,8 +278,10 @@ async function main() {
         continue;
       }
 
-      // Extract responses
-      const responses = gmailHelpers.extractResponses(bodyText);
+      // Extract responses with NLP fallback
+      const result = await extractResponsesWithNLP(bodyText, pollChoices);
+      const responses = result.responses;
+
       if (responses.length === 0) {
         logger.warn('  ' + senderEmail + ' - skipped (no valid responses found)');
         if (bodyText) {
@@ -340,6 +289,10 @@ async function main() {
         }
         skipped++;
         continue;
+      }
+
+      if (result.method === 'nlp') {
+        nlpCount++;
       }
 
       // Format response file
@@ -359,11 +312,15 @@ async function main() {
       // Save response file
       fs.writeFileSync(filePath, responseContent, 'utf8');
 
-      logger.success('  ' + senderEmail + ' - saved as ' + filename);
+      const nlpTag = result.method === 'nlp' ? ' [NLP]' : '';
+      logger.success('  ' + senderEmail + ' - saved as ' + filename + nlpTag);
       fetched++;
     }
 
     logger.info('Summary: ' + fetched + ' responses fetched, ' + skipped + ' skipped');
+    if (nlpCount > 0) {
+      logger.info(nlpCount + ' response(s) parsed via NLP');
+    }
     if (dedupSkipped > 0) {
       logger.info(dedupSkipped + ' older duplicate(s) skipped');
     }
@@ -377,7 +334,7 @@ async function main() {
         logger.info('Next: run /poll-process-responses to update Poll.md');
       }
     }
-    logger.summary('Fetched ' + fetched + ' response(s)');
+    logger.summary('Fetched ' + fetched + ' response(s)' + (nlpCount > 0 ? ' (' + nlpCount + ' via NLP)' : ''));
 
     process.exit(errors > 0 ? 1 : 0);
   } catch (err) {

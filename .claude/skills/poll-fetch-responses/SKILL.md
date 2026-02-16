@@ -83,10 +83,34 @@ Next: run /poll-process-responses to update Poll.md
 - Validates response format before saving (must have at least one numbered choice)
 - Handles multipart emails and HTML-to-text conversion
 
+## NLP Fallback
+
+When regex parsing finds no numbered responses in an email, the skill can fall back to Claude Haiku API to intelligently interpret natural language replies (e.g., "March 16 works for me, the 17th if needed").
+
+### How It Works
+
+1. **Regex first** -- three tiers of pattern matching are always tried first (fast, free)
+2. **NLP fallback** -- if regex returns nothing and `ANTHROPIC_API_KEY` is set, the email body is sent to Claude Haiku along with the poll's date/time choices
+3. **Graceful degradation** -- if no API key is set or the API call fails, behavior is identical to the regex-only path (response skipped with a warning)
+
+### Setup
+
+Set the `ANTHROPIC_API_KEY` environment variable. No additional npm packages are required (uses Node 20 native `fetch()`).
+
+### Output
+
+- Responses parsed via NLP show an `[NLP]` tag in verbose output
+- The summary line includes NLP count: `Fetched 3 response(s) (1 via NLP)`
+- If no API key is set and regex fails, a debug hint is logged: `set ANTHROPIC_API_KEY to enable NLP fallback`
+
+### Cost
+
+Each NLP call uses Claude Haiku (~$0.0002 per response). Only triggered when regex parsing fails, so well-formatted numbered responses have zero added cost or latency.
+
 ## Validation Rules
 
 - **Sender email** - Must match a participant in Poll.md
-- **Response body** - Must contain at least one numbered choice (e.g., "1: Yes")
+- **Response body** - Must contain at least one valid response (numbered format via regex, or natural language via NLP)
 - **Date header** - Must be parseable as valid date/time
 
 ## See Also

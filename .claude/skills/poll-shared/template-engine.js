@@ -44,28 +44,24 @@ function extractSubjectAndBody(mergedTemplate) {
   const lines = mergedTemplate.split('\n');
   let subject = '';
   let body = '';
-  let inSubject = false;
-  let inBody = false;
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+  for (const line of lines) {
+    if (!line.startsWith('|')) continue;
+    // Skip header and separator rows
+    if (line.includes('----') || line.includes('Item')) continue;
 
-    if (line.toLowerCase().startsWith('subject:')) {
-      inSubject = true;
-      inBody = false;
-      subject = line.substring(8).trim();
-    } else if (line.toLowerCase().startsWith('body:')) {
-      inBody = true;
-      inSubject = false;
-      body = line.substring(5).trim();
-    } else if (inSubject && !line.toLowerCase().startsWith('subject:')) {
-      // Continue reading subject
-      if (subject) subject += ' ';
-      subject += line.trim();
-    } else if (inBody) {
-      // Continue reading body
-      if (body) body += '\n';
-      body += line;
+    const rawCells = line.split('|');
+    const cells = rawCells.slice(1, rawCells.length - 1).map(c => c.trim());
+    if (cells.length < 2) continue;
+
+    const key = cells[0].toLowerCase();
+    const value = cells[1];
+
+    if (key === 'subject') {
+      subject = value;
+    } else if (key === 'body') {
+      // Convert <br> tags to newlines for draft files
+      body = value.replace(/<br>/gi, '\n');
     }
   }
 
@@ -135,17 +131,38 @@ function mergeTemplate(templateContent, pollData, participant, options = {}) {
       merged = merged.replace(new RegExp(`{?\\$DateTimeChoice\\.${choiceIndex}\\$?}`, 'g'), formattedChoice);
     }
 
-    // Handle the ellipsis expansion for remaining choices beyond what was explicitly listed
-    // Find all numbered placeholders and see if there are gaps
-    const choicePlaceholders = merged.match(/{?\$DateTimeChoice\.\d+\$?}/g) || [];
-    if (choicePlaceholders.length > 0) {
-      // We have unreplaced placeholders - shouldn't happen if template matches actual choices
-      // For now, just remove them
-      merged = merged.replace(/{?\$DateTimeChoice\.\d+\$?}/g, '');
+    // Expand "..." with remaining choices (3, 4, ...) using the suffix pattern from choice 2
+    if (merged.includes('...') && pollData.choices.length > 2) {
+      // Extract the suffix pattern from the last explicit choice line (choice 2)
+      // Look for the pattern: "2. <datetime> <TZ><suffix><br>..."
+      const choice2Pattern = merged.match(/2\.\s+.+?\s+[A-Z]{2,4}([^<]*(?:<br>)?)\.\.\./);
+      const suffix = choice2Pattern ? choice2Pattern[1].replace(/<br>$/, '') : ': (  ) **Yes**  (  ) **As Needed**';
+
+      // Build expansion for choices 3+
+      const expansionParts = [];
+      for (let ci = 2; ci < pollData.choices.length; ci++) {
+        const choiceIndex = ci + 1;
+        const choice = pollData.choices[ci];
+        const convertedChoice = convertDateTime(choice, pollData.organizerTZ, participant.tz);
+        const formattedChoice = `${choiceIndex}. ${convertedChoice} ${participant.tz}`;
+        expansionParts.push(`${formattedChoice}${suffix}`);
+      }
+
+      // Replace <br>...<br> or <br>... with expanded choices joined by <br>
+      const expansion = expansionParts.join('<br>');
+      merged = merged.replace(/<br>\.\.\.<br>/g, `<br>${expansion}<br>`);
+      merged = merged.replace(/<br>\.\.\./g, `<br>${expansion}`);
+      // Also handle standalone ... on its own line
+      merged = merged.replace(/^\.\.\.$\n?/gm, expansionParts.join('\n') + '\n');
+    } else {
+      // No expansion needed or <= 2 choices — just remove any leftover "..."
+      merged = merged.replace(/<br>\.\.\.<br>/g, '<br>');
+      merged = merged.replace(/<br>\.\.\./g, '');
+      merged = merged.replace(/^\.\.\.$\n?/gm, '');
     }
 
-    // Remove the ellipsis line if present
-    merged = merged.replace(/\.\.\.[\n]?/g, '');
+    // Clean up any unreplaced DateTimeChoice placeholders
+    merged = merged.replace(/{\$DateTimeChoice\.\d+\$}/g, '');
   }
 
   return merged;

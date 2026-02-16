@@ -88,20 +88,21 @@ function parsePollFile(filePath) {
         else if (key === 'Deadline for Responses') result.description.deadline = value;
       }
     } else if (currentSection === 'participants') {
-      if (line.startsWith('|') && line.includes('----')) {
-        // Header separator line - skip
+      if (line.startsWith('|') && (line.includes('----') || line.includes('Name'))) {
+        // Header row or separator line - skip
         continue;
       } else if (line.startsWith('|')) {
-        const cells = line.split('|').map(c => c.trim()).filter(c => c);
-        if (cells.length >= 7) {
+        const rawCells = line.split('|');
+        const cells = rawCells.slice(1, rawCells.length - 1).map(c => c.trim());
+        if (cells.length >= 3) {
           result.participants.push({
             name: cells[0],
             email: cells[1],
             tz: cells[2],
-            polledOn: cells[3],
-            respondedOn: cells[4],
-            remindedOn: cells[5],
-            resultsCommunicatedOn: cells[6]
+            polledOn: cells[3] || '',
+            respondedOn: cells[4] || '',
+            remindedOn: cells[5] || '',
+            resultsCommunicatedOn: cells[6] || ''
           });
         }
       }
@@ -111,11 +112,12 @@ function parsePollFile(filePath) {
         result.choices.push(match[1].trim());
       }
     } else if (currentSection === 'responses') {
-      if (line.startsWith('|') && line.includes('----')) {
-        // Header separator line - skip
+      if (line.startsWith('|') && (line.includes('----') || line.includes('Date/time'))) {
+        // Header row or separator line - skip
         continue;
       } else if (line.startsWith('|')) {
-        const cells = line.split('|').map(c => c.trim()).filter(c => c);
+        const rawCells = line.split('|');
+        const cells = rawCells.slice(1, rawCells.length - 1).map(c => c.trim());
         if (cells.length >= 5) {
           // Parse Yes and As needed columns (comma-separated choice numbers)
           const yesChoices = cells[3] ? cells[3].split(',').map(x => x.trim()).filter(x => x) : [];

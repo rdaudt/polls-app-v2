@@ -143,20 +143,88 @@ function htmlToPlainText(html) {
 
 /**
  * Extract numbered responses from email body
- * Format: "1: Yes" or "2: As Needed"
+ * Supports multiple formats:
+ *   "1: Yes", "1. Yes", "1) Yes", "1 - Yes", "1 Yes"
+ *   "2: As Needed", "2. As needed", "2: as needed"
+ *   Checkbox style: "(X) Yes" or "[x] Yes" next to numbered items
  * @param {string} bodyText - Email body
  * @returns {Array} Array of { number, choice }
  */
 function extractResponses(bodyText) {
   const responses = [];
-  const regex = /^\s*(\d+)\s*:\s*(Yes|As\s+Needed)/gim;
-  let match;
 
-  while ((match = regex.exec(bodyText)) !== null) {
+  // Pattern 1: "N: Yes" / "N. Yes" / "N) Yes" / "N - Yes" (with optional separator)
+  const directRegex = /^\s*(\d+)\s*[:.)\-]?\s*(Yes|As\s*Needed)\b/gim;
+  let match;
+  while ((match = directRegex.exec(bodyText)) !== null) {
+    const choice = match[2].trim().replace(/\s+/g, ' ');
     responses.push({
       number: parseInt(match[1]),
-      choice: match[2].trim()
+      choice: choice.charAt(0).toUpperCase() + choice.slice(1).toLowerCase()
+        === 'Yes' ? 'Yes' : 'As Needed'
     });
+  }
+
+  if (responses.length > 0) return responses;
+
+  // Pattern 2: Checkbox style — look for (X) or [X] next to Yes/As Needed on lines with numbers
+  // e.g., "1. Mar 16, 2026, 13:00 EST: (X) Yes  (  ) As Needed"
+  const checkboxRegex = /(\d+)\.\s+.*?(?:\(X\)|\[X\])\s*(Yes|As\s*Needed)/gim;
+  while ((match = checkboxRegex.exec(bodyText)) !== null) {
+    const choice = match[2].trim().replace(/\s+/g, ' ');
+    responses.push({
+      number: parseInt(match[1]),
+      choice: choice.toLowerCase().startsWith('as') ? 'As Needed' : 'Yes'
+    });
+  }
+
+  if (responses.length > 0) return responses;
+
+  // Pattern 3: Natural language — extract choice numbers from free-text responses
+  // Only look at text BEFORE the quoted reply (before "On ... wrote:")
+  const replyMarker = bodyText.search(/On\s+\w+day,\s+\w+\s+\d/i);
+  const ownText = replyMarker > 0 ? bodyText.substring(0, replyMarker).trim() : bodyText.trim();
+
+  if (!ownText) return responses;
+
+  // Look for "as needed" mentions first to separate from plain "yes" choices
+  const asNeededNumbers = new Set();
+  const asNeededNL = /(?:option|choice|#)?\s*(\d+)\s+(?:as\s*needed|if\s*needed|maybe)/gi;
+  while ((match = asNeededNL.exec(ownText)) !== null) {
+    asNeededNumbers.add(parseInt(match[1]));
+  }
+
+  // Extract all mentioned choice numbers (1-9) from the user's own text
+  // Patterns: "option 1", "choice 2", "#3", standalone digits in context
+  const numberPattern = /(?:option|choice|#)\s*(\d+)/gi;
+  const seen = new Set();
+  while ((match = numberPattern.exec(ownText)) !== null) {
+    const num = parseInt(match[1]);
+    if (num >= 1 && num <= 9 && !seen.has(num)) {
+      seen.add(num);
+      responses.push({
+        number: num,
+        choice: asNeededNumbers.has(num) ? 'As Needed' : 'Yes'
+      });
+    }
+  }
+
+  if (responses.length > 0) return responses;
+
+  // Last resort: look for bare digits (1-9) that appear to reference choices
+  // Only if the own text is short (likely a simple reply like "1 and 3")
+  if (ownText.length < 200) {
+    const bareDigits = /\b(\d)\b/g;
+    while ((match = bareDigits.exec(ownText)) !== null) {
+      const num = parseInt(match[1]);
+      if (num >= 1 && num <= 9 && !seen.has(num)) {
+        seen.add(num);
+        responses.push({
+          number: num,
+          choice: asNeededNumbers.has(num) ? 'As Needed' : 'Yes'
+        });
+      }
+    }
   }
 
   return responses;
