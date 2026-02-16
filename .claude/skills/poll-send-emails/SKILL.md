@@ -85,7 +85,7 @@ Parsed drafts:
 - Plain text emails only (no HTML formatting)
 - Creates `outbox/sent/` directory if it doesn't exist
 - Rate limiting: 1 second delay between batches (max 10 per batch)
-- Preserves original draft files in `outbox/` (copies to sent, doesn't delete)
+- Moves sent draft files from `outbox/` to `outbox/sent/` (removes from outbox after sending)
 
 ## See Also
 

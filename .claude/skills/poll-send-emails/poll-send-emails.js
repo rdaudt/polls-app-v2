@@ -145,7 +145,7 @@ async function main() {
           // Move to sent folder
           const sourcePath = path.join(outboxFolder, draft.filename);
           const destPath = path.join(sentFolder, draft.filename);
-          fs.copyFileSync(sourcePath, destPath);
+          fs.renameSync(sourcePath, destPath);
 
           sent++;
         } catch (err) {
