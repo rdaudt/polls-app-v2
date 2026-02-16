@@ -15,11 +15,18 @@ const { extractResponsesWithNLP } = require('../poll-shared/nlp-response-parser'
 
 /**
  * Format date string for response file
+ * Expected format: "Mon DD, YYYY, HH:MM" (e.g., "Feb 16, 2026, 01:58")
  */
 function formatDate(dateString) {
   try {
     const date = new Date(dateString);
-    return date.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[date.getMonth()];
+    const day = date.getDate();
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${month} ${day}, ${year}, ${hours}:${minutes}`;
   } catch {
     return dateString;
   }

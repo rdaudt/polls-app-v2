@@ -36,23 +36,35 @@ function tallyVotes(responses, participantCount) {
   }
 
   // Step 1: Filter to latest response per participant
-  const latestByParticipant = {};
+  // Group responses by participant and find the latest timestamp
+  const responsesByParticipant = {};
 
   responses.forEach(response => {
     const key = response.participant.toLowerCase(); // Case-insensitive
 
-    if (!latestByParticipant[key]) {
-      latestByParticipant[key] = response;
-    } else {
-      // Keep the response with the latest timestamp
-      const existing = latestByParticipant[key];
-      if (new Date(response.timestamp) > new Date(existing.timestamp)) {
-        latestByParticipant[key] = response;
-      }
+    if (!responsesByParticipant[key]) {
+      responsesByParticipant[key] = [];
     }
+    responsesByParticipant[key].push(response);
   });
 
-  const latestResponses = Object.values(latestByParticipant);
+  // For each participant, find the latest timestamp and keep ALL responses with that timestamp
+  const latestResponses = [];
+
+  Object.entries(responsesByParticipant).forEach(([participant, participantResponses]) => {
+    // Find the latest timestamp for this participant
+    const latestTimestamp = participantResponses.reduce((latest, response) => {
+      const responseDate = new Date(response.timestamp);
+      return !latest || responseDate > latest ? responseDate : latest;
+    }, null);
+
+    // Keep all responses with the latest timestamp
+    participantResponses.forEach(response => {
+      if (new Date(response.timestamp).getTime() === latestTimestamp.getTime()) {
+        latestResponses.push(response);
+      }
+    });
+  });
 
   // Step 2: Count votes for each choice
   const choiceTallyMap = {};
