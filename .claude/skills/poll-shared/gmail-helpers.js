@@ -167,15 +167,21 @@ function extractResponses(bodyText) {
 
   if (responses.length > 0) return responses;
 
-  // Pattern 2: Checkbox style — look for (X) or [X] next to Yes/As Needed on lines with numbers
-  // e.g., "1. Mar 16, 2026, 13:00 EST: (X) Yes  (  ) As Needed"
-  const checkboxRegex = /(\d+)\.\s+.*?(?:\(X\)|\[X\])\s*(Yes|As\s*Needed)/gim;
-  while ((match = checkboxRegex.exec(bodyText)) !== null) {
-    const choice = match[2].trim().replace(/\s+/g, ' ');
-    responses.push({
-      number: parseInt(match[1]),
-      choice: choice.toLowerCase().startsWith('as') ? 'As Needed' : 'Yes'
-    });
+  // Pattern 2: Filled-checkbox style — two checkbox groups per line
+  // Format: "N. <date/time>: ( ) **Yes**  ( ) **As Needed**"
+  // A checkbox is "marked" when it contains any non-whitespace character
+  // Handles any mark character: X, x, *, checkmarks, etc.
+  const checkboxLineRegex = /^\s*(\d+)\.\s+.+?:\s*\(([^)]*)\)\s*\*{0,2}Yes\*{0,2}\s+\(([^)]*)\)\s*\*{0,2}As\s*Needed\*{0,2}/gim;
+  while ((match = checkboxLineRegex.exec(bodyText)) !== null) {
+    const choiceNum = parseInt(match[1]);
+    const yesMarked = /\S/.test(match[2]);
+    const asNeededMarked = /\S/.test(match[3]);
+
+    if (yesMarked) {
+      responses.push({ number: choiceNum, choice: 'Yes' });
+    } else if (asNeededMarked) {
+      responses.push({ number: choiceNum, choice: 'As Needed' });
+    }
   }
 
   if (responses.length > 0) return responses;
