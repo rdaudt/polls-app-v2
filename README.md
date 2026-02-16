@@ -254,10 +254,10 @@ This approach works with any email provider and keeps everything under your cont
 
 ## Roadmap
 
-- [x] Gmail integration with OAuth2 (automated email sending/receiving)
 - [ ] Support for additional email providers (Outlook, Yahoo Mail, etc.)
 - [ ] Web-based UI (optional)
 - [ ] Calendar integration (iCal export)
+- [ ] Multi-poll management (switch between active polls)
 
 ## License
 
