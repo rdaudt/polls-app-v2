@@ -9,7 +9,7 @@ Built entirely with Claude Code skills (slash commands) — no UI required. All 
 - 📧 **Email-based polling workflow** — invite participants and collect responses via email
 - 🌍 **Automatic time zone conversion** — handle participants across multiple time zones
 - 📝 **Markdown-based templates** — customizable email templates with merge fields
-- 🎯 **9 specialized skills** — dedicated commands for each step of the workflow (including optional Gmail automation)
+- 🎯 **11 specialized skills** — dedicated commands for each step of the workflow (including optional Gmail automation)
 - 📊 **Vote tallying** — automatic result calculation and frontrunner tracking
 - 🚀 **Optional Gmail Integration** — automated email sending and response collection (with OAuth2)
 - 📖 **Comprehensive documentation** — detailed guides, quick references, and examples
@@ -38,16 +38,21 @@ This app runs entirely through Claude Code slash commands. There is no web UI �
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/polls-app-v2.git
+   git clone https://github.com/rdaudt/polls-app-v2.git
    cd polls-app-v2
    ```
 
-2. Copy the example configuration:
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Copy the example configuration:
    ```bash
    cp polls-config.example.json polls-config.json
    ```
 
-3. Edit `polls-config.json` and set:
+4. Edit `polls-config.json` and set:
    - `pollsRoot` — absolute path where you'll store all polls
    - `activePoll` — name of the current poll (e.g., "022026 Monthly Meeting")
    - `inboxFolder` — where response files will be placed
@@ -104,6 +109,7 @@ Generates results emails to all participants (separate templates for respondents
 
 - **[USER-GUIDE.md](USER-GUIDE.md)** — Comprehensive guide with detailed workflows, file formats, time zone handling, troubleshooting, and examples
 - **[QUICK-REFERENCE.md](QUICK-REFERENCE.md)** — One-page cheat sheet with command summary, merge fields, and common tasks
+- **[SHARED-MODULES.md](SHARED-MODULES.md)** — Technical documentation for shared JavaScript modules
 - **[CLAUDE.md](CLAUDE.md)** — Project-level context and design decisions
 
 ## Configuration
@@ -127,29 +133,59 @@ polls-app-v2/
 ├── .claude/
 │   └── skills/
 │       ├── poll-create/              # Create new polls
-│       │   └── SKILL.md
+│       │   ├── SKILL.md
+│       │   └── poll-create.js
 │       ├── poll-draft-emails/        # Draft invitation emails
-│       │   └── SKILL.md
+│       │   ├── SKILL.md
+│       │   └── poll-draft-emails.js
 │       ├── poll-preview/             # Preview merged emails
-│       │   └── SKILL.md
+│       │   ├── SKILL.md
+│       │   └── poll-preview.js
 │       ├── poll-process-responses/   # Process participant responses
-│       │   └── SKILL.md
+│       │   ├── SKILL.md
+│       │   └── poll-process-responses.js
 │       ├── poll-remind/              # Draft reminders
-│       │   └── SKILL.md
+│       │   ├── SKILL.md
+│       │   └── poll-remind.js
 │       ├── poll-status/              # View current results
-│       │   └── SKILL.md
+│       │   ├── SKILL.md
+│       │   └── poll-status.js
 │       ├── poll-wrap-up/             # Finalize and send results
-│       │   └── SKILL.md
-│       └── poll-shared/              # Shared reference files
-│           ├── poll-file-format.md
-│           ├── tz-conversion.md
-│           ├── template-merge.md
-│           └── poll-init-format.md
+│       │   ├── SKILL.md
+│       │   └── poll-wrap-up.js
+│       ├── poll-gmail-setup/         # Gmail OAuth2 setup
+│       │   ├── SKILL.md
+│       │   └── poll-gmail-setup.js
+│       ├── poll-send-emails/         # Send emails via Gmail
+│       │   ├── SKILL.md
+│       │   └── poll-send-emails.js
+│       ├── poll-fetch-responses/     # Fetch responses from Gmail
+│       │   ├── SKILL.md
+│       │   └── poll-fetch-responses.js
+│       ├── poll-reset/               # Reset poll (testing only)
+│       │   ├── SKILL.md
+│       │   └── poll-reset.js
+│       └── poll-shared/              # Shared modules and references
+│           ├── poll-file-format.md   # Poll.md format reference
+│           ├── tz-conversion.md      # Time zone conversion rules
+│           ├── template-merge.md     # Template merge field reference
+│           ├── poll-init-format.md   # Poll init file format
+│           ├── gmail-auth.js         # Gmail OAuth2 authentication
+│           ├── gmail-helpers.js      # Gmail API utilities
+│           ├── logger.js             # Logging with quiet/verbose modes
+│           ├── nlp-response-parser.js # NLP fallback for responses
+│           ├── poll-parser.js        # Poll.md parser
+│           ├── template-engine.js    # Template merge engine
+│           ├── tz-converter.js       # Time zone converter
+│           └── vote-tally.js         # Vote tallying logic
 ├── CLAUDE.md                         # Project instructions
 ├── USER-GUIDE.md                     # Comprehensive user guide
 ├── QUICK-REFERENCE.md                # Command cheat sheet
+├── SHARED-MODULES.md                 # Module documentation
 ├── README.md                         # This file
 ├── LICENSE                           # MIT License
+├── package.json                      # Node.js dependencies
+├── package-lock.json                 # Dependency lock file
 ├── polls-config.example.json         # Configuration template
 └── .gitignore                        # Git ignore rules
 ```
@@ -203,9 +239,9 @@ Each line specifies their response (`Yes` or `As Needed`) for each date/time cho
 ## Requirements
 
 - **Claude Code CLI** — Download from [claude.com/claude-code](https://claude.com/claude-code)
-- **Node.js 20+** — Required for Gmail integration (optional; manual workflow needs only email client)
+- **Node.js 20+** — Required for running all skills (JavaScript implementations)
 - **Polls directory** — A folder on your system to store poll data
-- **Email client** — For sending and receiving poll emails (required for manual workflow only)
+- **Email client** — For sending and receiving poll emails (if not using Gmail integration)
 
 ### Optional: Gmail Integration
 
